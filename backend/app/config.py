@@ -15,6 +15,8 @@ class Settings(BaseSettings):
 
     # ChromaDB
     chroma_db_path: str = "./data/chroma"
+    chroma_collection_name: str = "legal_knowledge"
+    chroma_persistent_storage: bool = True
 
     # App
     app_host: str = "0.0.0.0"
