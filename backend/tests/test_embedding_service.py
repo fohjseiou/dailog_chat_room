@@ -1,5 +1,9 @@
 import pytest
-from app.services.embedding_service import get_embedding_service
+from app.services.embedding_service import (
+    get_embedding_service,
+    EmbeddingServiceError,
+    EmbeddingAPIError
+)
 
 
 @pytest.mark.asyncio
@@ -32,3 +36,37 @@ async def test_embedding_dimensions():
     assert len(embedding1) == len(embedding2)
     # text-embedding-v3 should output 1024 dimensions
     assert len(embedding1) == 1024
+
+
+@pytest.mark.asyncio
+async def test_empty_text():
+    """Test that empty text raises ValueError"""
+    service = get_embedding_service()
+    with pytest.raises(ValueError, match="cannot be empty"):
+        await service.generate_embedding("")
+
+
+@pytest.mark.asyncio
+async def test_whitespace_only_text():
+    """Test that whitespace-only text raises ValueError"""
+    service = get_embedding_service()
+    with pytest.raises(ValueError, match="cannot be empty"):
+        await service.generate_embedding("   ")
+
+
+@pytest.mark.asyncio
+async def test_singleton():
+    """Test that embedding service returns singleton instance"""
+    service1 = get_embedding_service()
+    service2 = get_embedding_service()
+    assert service1 is service2
+
+
+@pytest.mark.asyncio
+async def test_custom_exceptions_exist():
+    """Test that custom exception types are available"""
+    # Test that we can import and use the custom exceptions
+    assert EmbeddingServiceError is not None
+    assert EmbeddingAPIError is not None
+    # EmbeddingAPIError should inherit from EmbeddingServiceError
+    assert issubclass(EmbeddingAPIError, EmbeddingServiceError)
