@@ -7,6 +7,21 @@ import asyncio
 
 logger = logging.getLogger(__name__)
 
+# Constants
+DEFAULT_SYSTEM_PROMPT = """你是一个专业的法律咨询助手，为普通公众提供初步的法律信息参考。
+
+重要原则：
+1. 仅提供法律信息参考，不构成正式法律意见
+2. 建议用户在重大事项上咨询专业律师
+3. 回答要清晰、易懂，避免过度专业术语
+4. 如果不确定，请说明需要更多信息"""
+
+MAX_HISTORY_MESSAGES = 10
+DEFAULT_TEMPERATURE = 0.7
+DEFAULT_TOP_P = 0.9
+MAX_TOKENS = 2000
+FALLBACK_ERROR_MESSAGE = "抱歉，我现在无法回答。请稍后再试。如果您有紧急的法律问题，建议咨询专业律师。"
+
 
 class LLMService:
     """Service for interacting with DashScope Qwen LLM"""
@@ -34,26 +49,17 @@ class LLMService:
             The LLM's response as a string
         """
         try:
-            # Default legal consultation system prompt
-            default_system_prompt = """你是一个专业的法律咨询助手，为普通公众提供初步的法律信息参考。
-
-重要原则：
-1. 仅提供法律信息参考，不构成正式法律意见
-2. 建议用户在重大事项上咨询专业律师
-3. 回答要清晰、易懂，避免过度专业术语
-4. 如果不确定，请说明需要更多信息"""
-
             # Build messages for Qwen API (Qwen uses list format)
             messages = []
 
             # Add system prompt
             messages.append({
                 "role": "system",
-                "content": system_prompt or default_system_prompt
+                "content": system_prompt or DEFAULT_SYSTEM_PROMPT
             })
 
-            # Add conversation history (last 10 messages)
-            for msg in conversation_history[-10:]:
+            # Add conversation history (last N messages)
+            for msg in conversation_history[-MAX_HISTORY_MESSAGES:]:
                 messages.append({
                     "role": msg["role"],
                     "content": msg["content"]
@@ -73,15 +79,15 @@ class LLMService:
                     model=self.model,
                     messages=messages,
                     result_format='message',
-                    temperature=0.7,
-                    top_p=0.9,
-                    max_tokens=2000
+                    temperature=DEFAULT_TEMPERATURE,
+                    top_p=DEFAULT_TOP_P,
+                    max_tokens=MAX_TOKENS
                 )
             )
 
             if response.status_code != 200:
                 logger.error(f"DashScope API error: {response.code} - {response.message}")
-                return "抱歉，我现在无法回答。请稍后再试。如果您有紧急的法律问题，建议咨询专业律师。"
+                return FALLBACK_ERROR_MESSAGE
 
             assistant_message = response.output.choices[0].message.content
             logger.info(f"Qwen response generated, tokens used: {response.usage.total_tokens}")
@@ -90,7 +96,7 @@ class LLMService:
         except Exception as e:
             logger.error(f"Error generating Qwen response: {e}")
             # Return a fallback error message
-            return "抱歉，我现在无法回答。请稍后再试。如果您有紧急的法律问题，建议咨询专业律师。"
+            return FALLBACK_ERROR_MESSAGE
 
     async def generate_response_stream(
         self,
@@ -110,22 +116,14 @@ class LLMService:
             Chunks of the response as they arrive
         """
         try:
-            default_system_prompt = """你是一个专业的法律咨询助手，为普通公众提供初步的法律信息参考。
-
-重要原则：
-1. 仅提供法律信息参考，不构成正式法律意见
-2. 建议用户在重大事项上咨询专业律师
-3. 回答要清晰、易懂，避免过度专业术语
-4. 如果不确定，请说明需要更多信息"""
-
             messages = []
 
             messages.append({
                 "role": "system",
-                "content": system_prompt or default_system_prompt
+                "content": system_prompt or DEFAULT_SYSTEM_PROMPT
             })
 
-            for msg in conversation_history[-10:]:
+            for msg in conversation_history[-MAX_HISTORY_MESSAGES:]:
                 messages.append({
                     "role": msg["role"],
                     "content": msg["content"]
@@ -144,11 +142,11 @@ class LLMService:
                 return Generation.call(
                     model=self.model,
                     messages=messages,
-                    temperature=0.7,
-                    top_p=0.9,
+                    temperature=DEFAULT_TEMPERATURE,
+                    top_p=DEFAULT_TOP_P,
                     stream=True,
                     result_format='message',
-                    max_tokens=2000
+                    max_tokens=MAX_TOKENS
                 )
 
             stream_gen = await loop.run_in_executor(None, get_stream_generator)
@@ -162,7 +160,7 @@ class LLMService:
 
         except Exception as e:
             logger.error(f"Error in streaming Qwen response: {e}")
-            yield "抱歉，我现在无法回答。请稍后再试。"
+            yield FALLBACK_ERROR_MESSAGE
 
 
 # Singleton instance
