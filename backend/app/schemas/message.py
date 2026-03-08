@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from uuid import UUID
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, Literal
 
 
 class MessageBase(BaseModel):
@@ -29,5 +29,5 @@ class ChatRequest(BaseModel):
 
 
 class ChatStreamChunk(BaseModel):
-    type: str  # "token" | "error" | "done" | "citation"
+    type: Literal["token", "error", "done", "citation"]
     data: str | Dict[str, Any]

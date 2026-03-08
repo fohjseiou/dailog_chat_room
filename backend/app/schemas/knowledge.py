@@ -1,12 +1,12 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 from uuid import UUID
-from typing import Optional
+from typing import Optional, Literal
 
 
 class KnowledgeDocumentBase(BaseModel):
     title: str = Field(..., max_length=255)
-    category: Optional[str] = Field(None, max_length=100)
+    category: Optional[Literal["law", "case", "contract", "interpretation"]] = Field(None, max_length=100)
     source: Optional[str] = Field(None, max_length=500)
 
 
@@ -32,5 +32,5 @@ class SearchRequest(BaseModel):
 
 class SearchResult(BaseModel):
     text: str
-    score: float
+    score: float = Field(..., ge=0.0, le=1.0)
     metadata: dict
