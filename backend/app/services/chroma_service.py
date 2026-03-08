@@ -1,8 +1,10 @@
 import chromadb
 from chromadb.config import Settings
+from chromadb import errors
 from typing import List, Dict, Any, Optional
 from app.config import get_settings
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +21,12 @@ class ChromaService:
         self.collection_name = settings.chroma_collection_name
         self._collection = None
 
-    @property
-    def collection(self):
-        """Get or create collection"""
+    def _get_or_create_collection(self):
+        """Helper method to get or create collection (synchronous)"""
         if self._collection is None:
             try:
                 self._collection = self.client.get_collection(name=self.collection_name)
-            except:
+            except errors.NotFoundError:
                 self._collection = self.client.create_collection(
                     name=self.collection_name,
                     metadata={"description": "Legal knowledge base with DashScope embeddings"}
@@ -41,11 +42,16 @@ class ChromaService:
     ) -> None:
         """Add documents with embeddings to collection"""
         try:
-            self.collection.add(
-                documents=documents,
-                embeddings=embeddings,
-                metadatas=metadatas,
-                ids=ids
+            loop = asyncio.get_event_loop()
+            coll = await loop.run_in_executor(None, self._get_or_create_collection)
+            await loop.run_in_executor(
+                None,
+                lambda: coll.add(
+                    documents=documents,
+                    embeddings=embeddings,
+                    metadatas=metadatas,
+                    ids=ids
+                )
             )
             logger.info(f"Added {len(documents)} documents to ChromaDB")
         except Exception as e:
@@ -60,11 +66,16 @@ class ChromaService:
     ) -> Dict[str, Any]:
         """Search for similar documents by embedding"""
         try:
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=n_results,
-                where=where,
-                include=["documents", "metadatas", "distances"]
+            loop = asyncio.get_event_loop()
+            coll = await loop.run_in_executor(None, self._get_or_create_collection)
+            results = await loop.run_in_executor(
+                None,
+                lambda: coll.query(
+                    query_embeddings=[query_embedding],
+                    n_results=n_results,
+                    where=where,
+                    include=["documents", "metadatas", "distances"]
+                )
             )
             return {
                 "documents": results.get("documents", [[]])[0],
@@ -78,11 +89,17 @@ class ChromaService:
     async def delete_by_document_id(self, document_id: str) -> None:
         """Delete all chunks for a document"""
         try:
-            results = self.collection.get(
-                where={"document_id": document_id}
+            loop = asyncio.get_event_loop()
+            coll = await loop.run_in_executor(None, self._get_or_create_collection)
+            results = await loop.run_in_executor(
+                None,
+                lambda: coll.get(where={"document_id": document_id})
             )
             if results and results.get("ids"):
-                self.collection.delete(ids=results["ids"])
+                await loop.run_in_executor(
+                    None,
+                    lambda: coll.delete(ids=results["ids"])
+                )
                 logger.info(f"Deleted {len(results['ids'])} chunks for document {document_id}")
         except Exception as e:
             logger.error(f"Error deleting document: {e}")
@@ -91,11 +108,13 @@ class ChromaService:
     async def get_collection_stats(self) -> Dict[str, Any]:
         """Get collection statistics"""
         try:
-            count = self.collection.count()
+            loop = asyncio.get_event_loop()
+            coll = await loop.run_in_executor(None, self._get_or_create_collection)
+            count = await loop.run_in_executor(None, lambda: coll.count())
             return {
                 "name": self.collection_name,
                 "count": count,
-                "metadata": self.collection.metadata
+                "metadata": coll.metadata
             }
         except Exception as e:
             logger.error(f"Error getting stats: {e}")
