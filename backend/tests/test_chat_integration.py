@@ -12,6 +12,8 @@ def test_chat_with_agent():
     assert response.status_code == 200
     data = response.json()
     assert "response" in data
+    assert len(data["response"]) > 0
+    assert "session_id" in data
 
 def test_legal_question_with_rag():
     """Test legal question goes through RAG"""
@@ -21,3 +23,5 @@ def test_legal_question_with_rag():
     assert response.status_code == 200
     data = response.json()
     assert "response" in data
+    assert len(data["response"]) > 0
+    assert "session_id" in data

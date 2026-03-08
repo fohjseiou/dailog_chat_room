@@ -1,3 +1,4 @@
+from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,6 +6,7 @@ from app.database import get_db
 from app.services.session_service import SessionService
 from app.services.message_service import MessageService
 from app.agents.graph import get_agent_graph
+from app.agents.state import create_initial_state
 from app.schemas.message import ChatRequest
 import logging
 
@@ -14,7 +16,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("")
-async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
+async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
     """Send a message and get a response from the agent system"""
     session_service = SessionService(db)
     message_service = MessageService(db)
@@ -27,11 +29,11 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Session not found")
         session_id = request.session_id
 
-        # Get conversation history
+        # Get conversation history (limited to last 10 messages for performance)
         messages = await message_service.get_messages_by_session(session_id)
         conversation_history = [
             {"role": msg.role, "content": msg.content}
-            for msg in messages
+            for msg in messages[-10:]  # Limit to last 10 messages
         ]
     else:
         new_session = await session_service.create_session({"title": None})
@@ -39,18 +41,8 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         conversation_history = []
 
     try:
-        # Prepare state for agent
-        state = {
-            "session_id": str(session_id),
-            "user_message": request.message,
-            "conversation_history": conversation_history,
-            "user_intent": "",
-            "retrieved_context": [],
-            "context_str": "",
-            "sources": [],
-            "response": "",
-            "error": ""
-        }
+        # Prepare state for agent using factory function
+        state = create_initial_state(str(session_id), request.message, conversation_history)
 
         # Run the agent graph
         final_state = await agent_graph.invoke(state)
@@ -86,5 +78,5 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)):
         }
 
     except Exception as e:
-        logger.error(f"Error in chat endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in chat endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal processing error")
