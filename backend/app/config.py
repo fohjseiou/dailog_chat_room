@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import List
 
 
 class Settings(BaseSettings):
@@ -7,10 +8,10 @@ class Settings(BaseSettings):
     database_url: str
     database_url_sync: str
 
-    # OpenAI
-    openai_api_key: str
-    openai_model: str = "gpt-4-turbo-preview"
-    openai_embedding_model: str = "text-embedding-3-small"
+    # DashScope / Qwen
+    dashscope_api_key: str
+    dashscope_model: str = "qwen-plus"
+    dashscope_embedding_model: str = "text-embedding-v3"
 
     # ChromaDB
     chroma_db_path: str = "./data/chroma"
@@ -26,13 +27,13 @@ class Settings(BaseSettings):
     summary_token_threshold: int = 8000
 
     @property
-    def cors_origins_list(self) -> list[str]:
+    def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",")]
 
     class Config:
         env_file = ".env"
 
 
-@lru_cache
+@lru_cache(maxsize=None)
 def get_settings() -> Settings:
     return Settings()
