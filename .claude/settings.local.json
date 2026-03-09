@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node:*)",
+      "Bash(python:*)",
+      "Bash(alembic:*)",
+      "Bash(pytest:*)",
+      "Bash(PYTHONPATH=/d/vibe-coding/dialog_chat_room/backend pytest:*)",
+      "Bash(/d/softwore/python3.11.6/python.exe:*)",
+      "Bash(npm install:*)",
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(D:/Python/python.exe:*)",
+      "Bash(mkdir:*)",
+      "Bash(set:*)",
+      "Read(//d/vibe-coding/dialog_chat_room/%APPDATA%/pip/**)",
+      "Read(//d/vibe-coding/dialog_chat_room/%LOCALAPPDATA%/pip/**)",
+      "Bash(env:*)",
+      "Bash(ls:*)",
+      "Bash(git:*)",
+      "Bash(curl:*)",
+      "Bash(HTTP_PROXY= :/Python/python.exe:*)",
+      "Bash(D:softworepython3.11.6python.exe:*)",
+      "Bash(PYTHONPATH=/d/vibe-coding/dialog_chat_room/backend python:*)",
+      "Bash(npm list:*)",
+      "WebSearch",
+      "mcp__firecrawl__firecrawl_search",
+      "mcp__firecrawl__firecrawl_scrape",
+      "Bash(./venv/Scripts/python.exe:*)"
+    ]
+  }
+}

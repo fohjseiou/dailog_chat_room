@@ -3,6 +3,7 @@ from langchain_community.embeddings import DashScopeEmbeddings
 from app.config import get_settings
 import logging
 import asyncio
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ class EmbeddingService:
 
     async def generate_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embeddings for multiple texts
+        Generate embeddings for multiple texts with retry logic
 
         Args:
             texts: List of input texts
@@ -71,19 +72,31 @@ class EmbeddingService:
         if not texts:
             return []
 
-        try:
-            # LangChain DashScopeEmbeddings 自动处理批量
-            # 返回 List[List[float]]
-            # LangChain's embed_documents is synchronous, run in thread pool
-            loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(
-                None,
-                lambda: self.embeddings.embed_documents(texts)
-            )
-            return results
-        except Exception as e:
-            logger.error(f"Error generating batch embeddings: {e}")
-            raise EmbeddingServiceError(f"Failed to generate batch embeddings: {e}") from e
+        max_retries = 3
+        base_delay = 2  # seconds
+
+        for attempt in range(max_retries):
+            try:
+                # LangChain DashScopeEmbeddings 自动处理批量
+                # 返回 List[List[float]]
+                # LangChain's embed_documents is synchronous, run in thread pool
+                loop = asyncio.get_event_loop()
+                results = await loop.run_in_executor(
+                    None,
+                    lambda: self.embeddings.embed_documents(texts)
+                )
+                return results
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        f"Embedding batch attempt {attempt + 1} failed: {e}. "
+                        f"Retrying in {delay} seconds..."
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(f"Error generating batch embeddings after {max_retries} attempts: {e}")
+                    raise EmbeddingServiceError(f"Failed to generate batch embeddings: {e}") from e
 
 
 # Singleton
