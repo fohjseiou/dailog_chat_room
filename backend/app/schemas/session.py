@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from uuid import UUID
 from typing import Optional
 
 
@@ -17,7 +16,7 @@ class SessionUpdate(BaseModel):
 
 
 class SessionResponse(SessionBase):
-    id: UUID
+    id: str
     created_at: datetime
     updated_at: datetime
     summary: Optional[str] = None
@@ -28,7 +27,7 @@ class SessionResponse(SessionBase):
 
 
 class SessionListResponse(BaseModel):
-    id: UUID
+    id: str
     title: Optional[str]
     created_at: datetime
     summary: Optional[str] = None

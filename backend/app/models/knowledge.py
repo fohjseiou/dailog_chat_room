@@ -1,6 +1,5 @@
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, DateTime, func
-from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 import uuid
 
@@ -8,7 +7,7 @@ import uuid
 class KnowledgeDocument(Base):
     __tablename__ = "knowledge_documents"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title = Column(String(255), nullable=False)
     category = Column(String(100), nullable=True)
     source = Column(String(500), nullable=True)

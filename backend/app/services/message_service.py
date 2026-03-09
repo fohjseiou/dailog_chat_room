@@ -1,7 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
-from uuid import UUID
 
 from app.models.message import Message
 from app.schemas.message import MessageCreate, MessageResponse
@@ -13,20 +12,20 @@ class MessageService:
 
     async def create_message(self, data: MessageCreate) -> MessageResponse:
         message = Message(
-            session_id=data.session_id or UUID("00000000-0000-0000-0000-000000000000"),
+            session_id=data.session_id or "00000000-0000-0000-0000-000000000000",
             role=data.role,
             content=data.content
         )
         self.db.add(message)
         await self.db.commit()
         await self.db.refresh(message)
-        return MessageResponse.model_validate(message)
+        return MessageResponse.from_message_obj(message)
 
-    async def get_messages_by_session(self, session_id: UUID) -> List[MessageResponse]:
+    async def get_messages_by_session(self, session_id: str) -> List[MessageResponse]:
         messages = await Message.get_by_session(self.db, session_id)
-        return [MessageResponse.model_validate(m) for m in messages]
+        return [MessageResponse.from_message_obj(m) for m in messages]
 
-    async def save_exchange(self, session_id: UUID, user_message: str, assistant_message: str, metadata: dict = None):
+    async def save_exchange(self, session_id: str, user_message: str, assistant_message: str, metadata: dict = None):
         """Save both user and assistant messages"""
         user_msg = Message(
             session_id=session_id,
@@ -35,11 +34,12 @@ class MessageService:
         )
         self.db.add(user_msg)
 
+        # The hybrid_property setter will handle JSON conversion
         asst_msg = Message(
             session_id=session_id,
             role="assistant",
             content=assistant_message,
-            metadata=metadata or {}
+            msg_metadata=metadata or {}
         )
         self.db.add(asst_msg)
 
@@ -47,4 +47,4 @@ class MessageService:
         await self.db.refresh(user_msg)
         await self.db.refresh(asst_msg)
 
-        return MessageResponse.model_validate(user_msg), MessageResponse.model_validate(asst_msg)
+        return MessageResponse.from_message_obj(user_msg), MessageResponse.from_message_obj(asst_msg)

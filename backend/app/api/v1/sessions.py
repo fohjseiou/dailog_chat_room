@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from uuid import UUID
+from typing import List, Optional
 
 from app.database import get_db
 from app.services.session_service import SessionService
@@ -11,15 +11,18 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 @router.post("", response_model=SessionResponse)
 async def create_session(
-    data: SessionCreate,
+    data: Optional[SessionCreate] = Body(None),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new session"""
     service = SessionService(db)
+    # Handle None case for creating session without title
+    if data is None:
+        data = SessionCreate(title=None)
     return await service.create_session(data)
 
 
-@router.get("", response_model=list[SessionListResponse])
+@router.get("", response_model=List[SessionListResponse])
 async def list_sessions(
     db: AsyncSession = Depends(get_db)
 ):
@@ -30,7 +33,7 @@ async def list_sessions(
 
 @router.get("/{session_id}", response_model=SessionResponse)
 async def get_session(
-    session_id: UUID,
+    session_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     """Get a session by ID with messages"""
@@ -43,7 +46,7 @@ async def get_session(
 
 @router.put("/{session_id}", response_model=SessionResponse)
 async def update_session(
-    session_id: UUID,
+    session_id: str,
     data: SessionUpdate,
     db: AsyncSession = Depends(get_db)
 ):
@@ -57,7 +60,7 @@ async def update_session(
 
 @router.delete("/{session_id}")
 async def delete_session(
-    session_id: UUID,
+    session_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a session"""

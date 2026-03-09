@@ -1,8 +1,9 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, AsyncIterator
 from app.agents.state import AgentState
 from app.services.document_service import get_document_service
 from app.services.llm_service import get_llm_service
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -103,4 +104,66 @@ async def response_generator_node(state: AgentState) -> Dict[str, Any]:
         return {
             "response": "抱歉，处理您的请求时出现错误。请稍后再试。",
             "error": str(e)
+        }
+
+
+async def response_generator_node_stream(state: AgentState) -> AsyncIterator[Dict[str, Any]]:
+    """Generate streaming response using Qwen LLM"""
+    llm_service = get_llm_service()
+
+    try:
+        # Build system prompt based on context
+        if state.get("context_str"):
+            system_prompt = f"""你是一个专业的法律咨询助手，为普通公众提供初步的法律信息参考。
+
+重要原则：
+1. 仅提供法律信息参考，不构成正式法律意见
+2. 建议用户在重大事项上咨询专业律师
+3. 基于提供的法律知识库回答，引用相关法规
+4. 回答要清晰、易懂，避免过度专业术语
+
+参考信息：
+{state['context_str']}
+
+请基于以上参考信息回答用户的问题。如果参考信息不足，请说明这一点。"""
+        else:
+            system_prompt = None
+
+        # Yield start event
+        yield {
+            "event": "start",
+            "data": {"intent": state.get("user_intent", "unknown")}
+        }
+
+        # Yield retrieved docs if any
+        if state.get("sources"):
+            yield {
+                "event": "context",
+                "data": {"sources": state["sources"]}
+            }
+
+        # Stream the response
+        full_response = ""
+        async for chunk in llm_service.generate_response_stream(
+            message=state["user_message"],
+            conversation_history=state["conversation_history"],
+            system_prompt=system_prompt
+        ):
+            full_response += chunk
+            yield {
+                "event": "token",
+                "data": {"chunk": chunk, "full_response": full_response}
+            }
+
+        # Yield end event
+        yield {
+            "event": "end",
+            "data": {"response": full_response}
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating streaming response: {e}")
+        yield {
+            "event": "error",
+            "data": {"error": str(e)}
         }
