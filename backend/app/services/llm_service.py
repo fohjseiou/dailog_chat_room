@@ -151,12 +151,18 @@ class LLMService:
 
             stream_gen = await loop.run_in_executor(None, get_stream_generator)
 
-            # Yield chunks from the stream
+            # Yield chunks from the stream (DashScope returns the full content in each iteration if using result_format='message')
+            last_content = ""
             for response in stream_gen:
                 if response.status_code == 200 and response.output:
                     for choice in response.output.choices:
                         if choice.message and choice.message.content:
-                            yield choice.message.content
+                            full_content = choice.message.content
+                            # Calculate delta
+                            delta = full_content[len(last_content):]
+                            if delta:
+                                last_content = full_content
+                                yield delta
 
         except Exception as e:
             logger.error(f"Error in streaming Qwen response: {e}")

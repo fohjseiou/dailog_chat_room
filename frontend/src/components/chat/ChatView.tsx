@@ -7,9 +7,16 @@ import { ResponsiveLayout } from '../layout/ResponsiveLayout';
 import { SessionList } from '../common/SessionList';
 
 export function ChatView() {
-  const { messages, isLoading, error, thinking, clearError } = useChatStore();
+  const { messages, sessionId, loadMessages, isLoading, error, thinking, clearError } = useChatStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Load messages if session exists and messages are empty
+  useEffect(() => {
+    if (sessionId && messages.length === 0) {
+      loadMessages(sessionId);
+    }
+  }, [sessionId, loadMessages, messages.length]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {

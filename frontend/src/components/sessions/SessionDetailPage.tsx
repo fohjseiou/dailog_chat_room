@@ -4,6 +4,7 @@ import { ArrowLeft, Download, Share2, Calendar, FileText } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
 import { MessageBubble } from '../chat/MessageBubble';
 import { MessageInput } from '../chat/MessageInput';
+import { ThinkingIndicator } from '../chat/ThinkingIndicator';
 import { chatApi } from '../../api/client';
 
 interface SessionDetail {
@@ -16,7 +17,7 @@ interface SessionDetail {
 }
 
 export function SessionDetailPage() {
-  const { sessionId: currentSessionId } = useChatStore();
+  const { sessionId: currentSessionId, messages, loadMessages, setSessionId, clearMessages, thinking } = useChatStore();
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -25,13 +26,17 @@ export function SessionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<string | null>(null);
 
-  // Sync session with chat store
+  // Sync session with chat store and load messages
   useEffect(() => {
-    if (sessionId && sessionId !== currentSessionId) {
-      // In a real app, you'd load the session messages here
-      // For now, we just update the store's sessionId
+    if (sessionId) {
+      if (sessionId !== currentSessionId) {
+        setSessionId(sessionId);
+        loadMessages(sessionId);
+      } else if (messages.length === 0) {
+        loadMessages(sessionId);
+      }
     }
-  }, [sessionId, currentSessionId]);
+  }, [sessionId, currentSessionId, loadMessages, setSessionId, messages.length]);
 
   // Auto-scroll
   useEffect(() => {
@@ -68,20 +73,26 @@ export function SessionDetailPage() {
   }, [sessionId]);
 
   const handleExport = async () => {
-    if (!session) return;
+    if (!session || messages.length === 0) return;
 
     try {
-      // Get session messages (in real app, you'd have an API for this)
-      const messages = []; // You'd need to implement getMessages endpoint
-
       let content = `对话记录\n`;
       content += `标题: ${session.title || '新对话'}\n`;
       content += `创建时间: ${new Date(session.created_at).toLocaleString('zh-CN')}\n`;
-      content += `消息数量: ${session.message_count}\n`;
+      content += `消息数量: ${messages.length}\n`;
       if (summary) {
         content += `\n摘要:\n${summary}\n`;
       }
-      content += `\n{'='.repeat(50)}\n\n`;
+      content += `\n${'='.repeat(50)}\n\n`;
+
+      messages.forEach((msg) => {
+        const roleName = msg.role === 'user' ? '用户' : '助手';
+        const time = new Date(msg.timestamp).toLocaleTimeString();
+        content += `[${time}] ${roleName}:\n${msg.content}\n\n`;
+        if (msg.sources && msg.sources.length > 0) {
+          content += `参考资料: ${msg.sources.map(s => s.title).join(', ')}\n\n`;
+        }
+      });
 
       // Create blob and download
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -198,13 +209,22 @@ export function SessionDetailPage() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-3xl mx-auto">
-          {/* Message list would go here - for now showing placeholder */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-            <p className="text-sm text-yellow-800">
-              消息记录加载中... <br />
-              <span className="text-xs">(完整消息历史功能即将推出)</span>
-            </p>
-          </div>
+          {messages.length === 0 ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+              <p className="text-gray-500">暂无消息记录</p>
+            </div>
+          ) : (
+            messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))
+          )}
+
+          {/* Thinking Indicator */}
+          <ThinkingIndicator
+            stage={thinking.stage}
+            intent={thinking.intent}
+            retrievedDocs={thinking.retrievedDocs}
+          />
         </div>
         <div ref={messagesEndRef} />
       </div>

@@ -29,6 +29,9 @@ async def test_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
+# Alias for backwards compatibility
+db_session = test_db
+
 @pytest.fixture(scope="function")
 def test_client(test_db):
     """Create a test client with test database"""

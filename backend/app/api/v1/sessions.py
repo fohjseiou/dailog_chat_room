@@ -5,6 +5,7 @@ from typing import List, Optional
 from app.database import get_db
 from app.services.session_service import SessionService
 from app.schemas.session import SessionCreate, SessionUpdate, SessionResponse, SessionListResponse
+from app.schemas.message import MessageResponse
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -56,6 +57,20 @@ async def update_session(
         return await service.update_session(session_id, data)
     except ValueError:
         raise HTTPException(status_code=404, detail="Session not found")
+
+
+@router.get("/{session_id}/messages", response_model=List[MessageResponse])
+async def get_session_messages(
+    session_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all messages for a session"""
+    from app.services.message_service import MessageService
+    service = MessageService(db)
+    messages = await service.get_messages_by_session(session_id)
+    # The message objects from SQLAlchemy need to be converted to MessageResponse
+    # Use the class method we saw in message schema
+    return [MessageResponse.from_message_obj(m) for m in messages]
 
 
 @router.delete("/{session_id}")

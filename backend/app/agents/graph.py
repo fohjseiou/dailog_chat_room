@@ -1,4 +1,4 @@
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
 from typing import AsyncIterator
 from app.agents.state import AgentState
 from app.agents.nodes import intent_router_node, rag_retriever_node, response_generator_node, response_generator_node_stream
@@ -33,7 +33,7 @@ def create_agent_graph() -> StateGraph:
             return "response_generator"
 
     # Define edges
-    workflow.set_entry_point("intent_router")
+    workflow.add_edge(START, "intent_router")
     workflow.add_conditional_edges(
         "intent_router",
         route_after_intent,
@@ -87,7 +87,7 @@ def create_streaming_agent_graph() -> StateGraph:
             return "response_generator_stream"
 
     # Define edges
-    workflow.set_entry_point("intent_router")
+    workflow.add_edge(START, "intent_router")
     workflow.add_conditional_edges(
         "intent_router",
         route_after_intent,

@@ -35,7 +35,8 @@ interface ChatState {
 
   sendMessage: (message: string) => Promise<void>;
   sendMessageStream: (message: string) => Promise<void>;
-  setSessionId: (id: string) => void;
+  loadMessages: (sessionId: string) => Promise<void>;
+  setSessionId: (id: string | null) => void;
   clearMessages: () => void;
   setUseStreaming: (use: boolean) => void;
 }
@@ -55,6 +56,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
   clearMessages: () => set({ messages: [], error: null, thinking: { stage: 'idle' } }),
 
   setUseStreaming: (use) => set({ useStreaming: use }),
+
+  loadMessages: async (sessionId: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const messages = await chatApi.getMessages(sessionId);
+      set({
+        messages: messages.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.created_at),
+          sources: m.msg_metadata?.sources || [],
+          intent: m.msg_metadata?.intent,
+        })),
+        isLoading: false,
+      });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : '加载消息失败',
+        isLoading: false,
+      });
+    }
+  },
 
   sendMessage: async (content: string) => {
     set({ isLoading: true, error: null });

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from typing import Optional
 
@@ -22,16 +22,15 @@ class SessionResponse(SessionBase):
     summary: Optional[str] = None
     message_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SessionListResponse(BaseModel):
     id: str
     title: Optional[str]
     created_at: datetime
+    updated_at: datetime
     summary: Optional[str] = None
     message_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
