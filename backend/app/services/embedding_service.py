@@ -1,14 +1,10 @@
 from typing import List
-import dashscope
-from dashscope import TextEmbedding
+from langchain_community.embeddings import DashScopeEmbeddings
 from app.config import get_settings
 import logging
 import asyncio
 
 logger = logging.getLogger(__name__)
-
-# Constants
-DEFAULT_TEXT_TYPE = "document"
 
 # Custom exceptions
 class EmbeddingServiceError(Exception):
@@ -22,16 +18,19 @@ class EmbeddingAPIError(EmbeddingServiceError):
 
 
 class EmbeddingService:
-    """Service for generating text embeddings using DashScope"""
+    """Service for generating text embeddings using LangChain DashScope"""
 
     def __init__(self):
         settings = get_settings()
-        dashscope.api_key = settings.dashscope_api_key
-        self.model = settings.dashscope_embedding_model
+        # 使用 LangChain 的 DashScope Embeddings
+        self.embeddings = DashScopeEmbeddings(
+            model=settings.dashscope_embedding_model,
+            dashscope_api_key=settings.dashscope_api_key
+        )
 
     async def generate_embedding(self, text: str) -> List[float]:
         """
-        Generate embedding for a single text using DashScope
+        Generate embedding for a single text
 
         Args:
             text: Input text to embed
@@ -41,32 +40,22 @@ class EmbeddingService:
 
         Raises:
             ValueError: If text is empty or None
-            EmbeddingAPIError: If the DashScope API returns an error
         """
         # Input validation
         if not text or not text.strip():
             raise ValueError("Text cannot be empty")
 
+        # LangChain DashScopeEmbeddings.embed_query 返回 List[float]
         try:
-            # DashScope TextEmbedding API is synchronous, run in thread pool
+            # LangChain's embed_query is synchronous, run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
+            result = await loop.run_in_executor(
                 None,
-                lambda: TextEmbedding.call(
-                    model=self.model,
-                    input=text,
-                    text_type=DEFAULT_TEXT_TYPE
-                )
+                lambda: self.embeddings.embed_query(text)
             )
-
-            if response.status_code != 200:
-                logger.error(f"DashScope TextEmbedding API error: {response.code} - {response.message}")
-                raise EmbeddingAPIError(f"Embedding API error: {response.message}")
-
-            # DashScope returns embeddings in output.embedding
-            return response.output['embeddings'][0]['embedding']
+            return result
         except Exception as e:
-            logger.error(f"Error generating DashScope embedding: {e}")
+            logger.error(f"Error generating embedding: {e}")
             raise EmbeddingServiceError(f"Failed to generate embedding: {e}") from e
 
     async def generate_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
@@ -79,31 +68,22 @@ class EmbeddingService:
         Returns:
             List of embedding vectors
         """
+        if not texts:
+            return []
+
         try:
-            # DashScope supports batch embedding
+            # LangChain DashScopeEmbeddings 自动处理批量
+            # 返回 List[List[float]]
+            # LangChain's embed_documents is synchronous, run in thread pool
             loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
+            results = await loop.run_in_executor(
                 None,
-                lambda: TextEmbedding.call(
-                    model=self.model,
-                    input=texts,
-                    text_type=DEFAULT_TEXT_TYPE
-                )
+                lambda: self.embeddings.embed_documents(texts)
             )
-
-            if response.status_code != 200:
-                logger.error(f"DashScope TextEmbedding API error: {response.code} - {response.message}")
-                raise EmbeddingAPIError(f"Batch embedding API error: {response.message}")
-
-            return [item['embedding'] for item in response.output['embeddings']]
+            return results
         except Exception as e:
-            logger.warning(f"Batch embedding failed, falling back to sequential: {e}")
-            # Fallback to sequential generation
-            embeddings = []
-            for text in texts:
-                emb = await self.generate_embedding(text)
-                embeddings.append(emb)
-            return embeddings
+            logger.error(f"Error generating batch embeddings: {e}")
+            raise EmbeddingServiceError(f"Failed to generate batch embeddings: {e}") from e
 
 
 # Singleton
