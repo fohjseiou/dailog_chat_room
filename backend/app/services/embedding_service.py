@@ -3,7 +3,6 @@ from langchain_community.embeddings import DashScopeEmbeddings
 from app.config import get_settings
 import logging
 import asyncio
-import time
 
 logger = logging.getLogger(__name__)
 
