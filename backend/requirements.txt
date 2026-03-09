@@ -14,7 +14,9 @@ pydantic-settings==2.13.1
 
 dashscope==1.24.3
 
-langchain==1.2.10
+langchain==0.3.20
+langchain-community==0.3.14
+langchain-text-splitters==0.3.6
 langgraph==1.0.10
 
 chromadb==1.5.2
