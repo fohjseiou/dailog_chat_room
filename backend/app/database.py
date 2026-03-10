@@ -9,7 +9,7 @@ AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=F
 Base = declarative_base()
 
 # Import all models to ensure they are registered with Base
-from app.models import session, message, knowledge, user  # noqa: E402, F401
+from app.models import session, message, knowledge, user, user_preference  # noqa: E402, F401
 
 
 async def get_db() -> AsyncSession:

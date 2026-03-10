@@ -3,7 +3,7 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.config import get_settings
 from app.database import Base
-from app.models import session, message, knowledge  # noqa: F401
+from app.models import session, message, knowledge, user, user_preference  # noqa: F401
 
 settings = get_settings()
 config = context.config
