@@ -38,9 +38,8 @@ def create_agent_graph() -> StateGraph:
         "intent_router",
         route_after_intent,
         {
-            "greeting": "response_generator",
-            "legal_consultation": "rag_retriever",
-            "general_chat": "response_generator"
+            "response_generator": "response_generator",
+            "rag_retriever": "rag_retriever"
         }
     )
 
@@ -92,9 +91,8 @@ def create_streaming_agent_graph() -> StateGraph:
         "intent_router",
         route_after_intent,
         {
-            "greeting": "response_generator_stream",
-            "legal_consultation": "rag_retriever",
-            "general_chat": "response_generator_stream"
+            "response_generator_stream": "response_generator_stream",
+            "rag_retriever": "rag_retriever"
         }
     )
 

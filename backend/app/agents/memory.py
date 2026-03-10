@@ -5,7 +5,7 @@ of conversation memory for the agent.
 """
 
 from langchain.memory import ConversationBufferMemory
-from langchain_core.memory import BaseMemory
+from typing import Any, Dict
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class MemoryFactory:
     """
 
     @staticmethod
-    def create_buffer_memory() -> BaseMemory:
+    def create_buffer_memory() -> Any:
         """
         Create a buffer memory that stores all conversation history.
 
