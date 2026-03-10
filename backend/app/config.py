@@ -42,6 +42,16 @@ class Settings(BaseSettings):
     summary_message_threshold: int = 10
     summary_token_threshold: int = 8000
 
+    # Auth
+    secret_key: str
+    password_min_length: int = 6
+    jwt_expire_days: int = 7
+
+    # Memory
+    short_term_session_limit: int = 3
+    long_term_memory_top_k: int = 5
+    enable_memory_extraction: bool = True
+
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",")]
