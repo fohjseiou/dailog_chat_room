@@ -11,7 +11,7 @@ class SessionService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create_session(self, data: Union[SessionCreate, Dict[str, Any], None]) -> SessionResponse:
+    async def create_session(self, data: Union[SessionCreate, Dict[str, Any], None], user_id: Optional[str] = None) -> SessionResponse:
         # Handle both dict and SessionCreate for compatibility
         if isinstance(data, dict):
             title = data.get("title")
@@ -19,16 +19,20 @@ class SessionService:
             title = None
         else:
             title = data.title if hasattr(data, "title") else None
-        session = Session(title=title)
+        session = Session(title=title, user_id=user_id)
         self.db.add(session)
         await self.db.commit()
         await self.db.refresh(session)
         return SessionResponse.model_validate(session)
 
-    async def list_sessions(self) -> List[SessionResponse]:
-        result = await self.db.execute(
-            select(Session).order_by(Session.updated_at.desc())
-        )
+    async def list_sessions(self, user_id: Optional[str] = None) -> List[SessionResponse]:
+        query = select(Session).order_by(Session.updated_at.desc())
+
+        # Filter by user_id if provided
+        if user_id is not None:
+            query = query.where(Session.user_id == user_id)
+
+        result = await self.db.execute(query)
         sessions = result.scalars().all()
         return [SessionResponse.model_validate(s) for s in sessions]
 

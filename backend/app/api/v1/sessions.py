@@ -73,6 +73,21 @@ async def get_session_messages(
     return [MessageResponse.from_message_obj(m) for m in messages]
 
 
+@router.delete("/{session_id}/messages/{message_id}")
+async def delete_message(
+    session_id: str,
+    message_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a specific message from a session"""
+    from app.services.message_service import MessageService
+    service = MessageService(db)
+    success = await service.delete_message(message_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return {"message": "Message deleted"}
+
+
 @router.delete("/{session_id}")
 async def delete_session(
     session_id: str,

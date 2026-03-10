@@ -1,11 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Download, Share2, Calendar, FileText } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { ArrowLeftOutlined, DownloadOutlined, ShareAltOutlined, CalendarOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useChatStore } from '../../stores/chatStore';
 import { MessageBubble } from '../chat/MessageBubble';
 import { MessageInput } from '../chat/MessageInput';
 import { ThinkingIndicator } from '../chat/ThinkingIndicator';
 import { chatApi } from '../../api/client';
+import { Button, Typography, Descriptions, Spin, Empty, Space, Alert, message } from 'antd';
+import dayjs from 'dayjs';
+
+const { Title, Text, Paragraph } = Typography;
 
 interface SessionDetail {
   id: string;
@@ -19,7 +23,6 @@ interface SessionDetail {
 export function SessionDetailPage() {
   const { sessionId: currentSessionId, messages, loadMessages, setSessionId, clearMessages, thinking } = useChatStore();
   const { sessionId } = useParams<{ sessionId: string }>();
-  const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [session, setSession] = useState<SessionDetail | null>(null);
@@ -102,8 +105,9 @@ export function SessionDetailPage() {
       a.download = `对话_${session.title || session.id}_${new Date().toISOString().slice(0, 10)}.txt`;
       a.click();
       URL.revokeObjectURL(url);
+      message.success('导出成功');
     } catch (error) {
-      alert('导出失败，请重试');
+      message.error('导出失败，请重试');
     }
   };
 
@@ -121,17 +125,14 @@ export function SessionDetailPage() {
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(window.location.href);
-      alert('链接已复制到剪贴板');
+      message.success('链接已复制到剪贴板');
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-500">加载中...</p>
-        </div>
+        <Spin tip="加载中..." size="large" />
       </div>
     );
   }
@@ -139,17 +140,20 @@ export function SessionDetailPage() {
   if (!session) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <FileText className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">会话不存在</h3>
-          <p className="mt-1 text-sm text-gray-500">该会话可能已被删除</p>
-          <Link
-            to="/"
-            className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            返回首页
+        <Empty
+          image={<FileTextOutlined className="text-5xl text-gray-400" />}
+          description={
+            <div>
+              <Text className="text-sm font-medium text-gray-900">会话不存在</Text>
+              <br />
+              <Text className="text-sm text-gray-500">该会话可能已被删除</Text>
+            </div>
+          }
+        >
+          <Link to="/">
+            <Button type="primary">返回首页</Button>
           </Link>
-        </div>
+        </Empty>
       </div>
     );
   }
@@ -159,50 +163,48 @@ export function SessionDetailPage() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              to="/"
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5 text-gray-600" />
+          <Space size="large">
+            <Link to="/">
+              <Button type="text" icon={<ArrowLeftOutlined />} />
             </Link>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">
+              <Title level={4} className="!mb-1">
                 {session.title || '新对话'}
-              </h1>
-              <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  {new Date(session.created_at).toLocaleString('zh-CN')}
-                </span>
-                <span>{session.message_count} 条消息</span>
-              </div>
+              </Title>
+              <Space>
+                <Text type="secondary">
+                  <CalendarOutlined className="mr-1" />
+                  {dayjs(session.created_at).format('YYYY-MM-DD HH:mm')}
+                </Text>
+                <Text type="secondary">{session.message_count} 条消息</Text>
+              </Space>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
+          </Space>
+          <Space>
+            <Button
+              icon={<ShareAltOutlined />}
               onClick={handleShare}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="分享"
             >
-              <Share2 className="h-5 w-5 text-gray-600" />
-            </button>
-            <button
+              分享
+            </Button>
+            <Button
+              icon={<DownloadOutlined />}
               onClick={handleExport}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="导出"
             >
-              <Download className="h-5 w-5 text-gray-600" />
-            </button>
-          </div>
+              导出
+            </Button>
+          </Space>
         </div>
 
         {/* Summary */}
         {summary && (
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h3 className="text-sm font-medium text-blue-900 mb-1">对话摘要</h3>
-            <p className="text-sm text-blue-800">{summary}</p>
-          </div>
+          <Alert
+            message="对话摘要"
+            description={summary}
+            type="info"
+            showIcon
+            className="mt-4"
+          />
         )}
       </div>
 
@@ -210,21 +212,18 @@ export function SessionDetailPage() {
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-3xl mx-auto">
           {messages.length === 0 ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-              <p className="text-gray-500">暂无消息记录</p>
-            </div>
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="暂无消息记录"
+            />
           ) : (
-            messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+            messages.map((msg) => (
+              <MessageBubble key={msg.id} message={msg} />
             ))
           )}
 
           {/* Thinking Indicator */}
-          <ThinkingIndicator
-            stage={thinking.stage}
-            intent={thinking.intent}
-            retrievedDocs={thinking.retrievedDocs}
-          />
+          <ThinkingIndicator stage={thinking.stage} />
         </div>
         <div ref={messagesEndRef} />
       </div>

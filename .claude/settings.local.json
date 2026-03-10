@@ -26,7 +26,29 @@
       "WebSearch",
       "mcp__firecrawl__firecrawl_search",
       "mcp__firecrawl__firecrawl_scrape",
-      "Bash(./venv/Scripts/python.exe:*)"
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(grep:*)",
+      "Bash(cd D:/vibe-coding/dialog_chat_room/backend && uv sync)",
+      "Bash(cd D:/vibe-coding/dialog_chat_room/backend && ./venv/Scripts/pip install \"langchain-community>=0.0.10\")",
+      "Bash(cd D:/vibe-coding/dialog_chat_room/backend && ./venv/Scripts/python -c \"from langchain_community.chat_models.tongyi import ChatTongyi; print\\('ChatTongyi imported successfully'\\)\")",
+      "Bash(cd D:/vibe-coding/dialog_chat_room/backend && DASHSCOPE_API_KEY=test DATABASE_URL=sqlite+aiosqlite:///:memory: DATABASE_URL_SYNC=sqlite:///:memory: python -m pytest tests/test_llm_service.py tests/services/test_llm_service_langchain.py -v --tb=short 2>&1 | tail -40)",
+      "Bash(cd D:/vibe-coding/dialog_chat_room/backend && mv tests/agents/test_memory.py tests/agents/test_memory.py.disabled)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/backend && pytest tests/ -v --tb=short 2>&1 | tee test_results.log)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/backend && uv pip install -e \".[dev]\")",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/backend && source venv/Scripts/activate && pip list | grep passlib)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/backend && ./venv/Scripts/pip.exe install \"passlib[bcrypt]>=1.7.4\")",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/backend && ./venv/Scripts/pytest.exe tests/test_passlib_installation.py -v)",
+      "Bash(cd D:/vibe-coding/dialog_chat_room/backend && hatch build version 2>&1 || python -c \"import hatch; print\\('Hatch version:', hatch.__version__\\)\" 2>&1 || pip show hatch 2>&1)",
+      "Bash(find /d/vibe-coding/dialog_chat_room -name \".env*\" -type f 2>/dev/null | grep -v venv | grep -v node_modules)",
+      "Bash(find /d/vibe-coding/dialog_chat_room -name \"*.key\" -o -name \"*.pem\" -o -name \"*.crt\" -o -name \"id_rsa*\" 2>/dev/null | grep -v venv | grep -v node_modules)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/backend && export SECRET_KEY=\"test-secret-key-for-unit-testing-purposes-only-valid-32\" && python -c \"from app.models.user import User; print\\('Import successful'\\); print\\('Columns:', [c.name for c in User.__table__.columns]\\)\")",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/backend && export SECRET_KEY=\"test-secret-key-for-unit-testing-purposes-only-valid-32\" && python -m pytest tests/models/test_user.py -v)",
+      "Bash(cd backend && export SECRET_KEY=\"test-secret-key-for-testing-min-32-chars\" && pytest tests/models/test_user_preference.py -v)",
+      "Bash(cd backend && export SECRET_KEY=\"test-secret-key-for-testing-min-32-chars\" && pytest tests/models/ -v)",
+      "Bash(cd backend && SECRET_KEY=test-secret-key-for-testing-purposes-only-min-32-chars pytest tests/models/test_session_user.py -v)",
+      "Bash(cd backend && pip list | grep -i bcrypt)",
+      "Bash(cd backend && pip list | grep -i passlib)",
+      "Bash(cd backend && pip install \"bcrypt<4.1.0\")"
     ]
   }
 }

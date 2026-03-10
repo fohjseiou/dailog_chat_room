@@ -92,6 +92,10 @@ export const chatApi = {
     const response = await api.get<any[]>(`/sessions/${sessionId}/messages`);
     return response.data;
   },
+
+  deleteMessage: async (sessionId: string, messageId: string): Promise<void> => {
+    await api.delete(`/sessions/${sessionId}/messages/${messageId}`);
+  },
 };
 
 // Knowledge API

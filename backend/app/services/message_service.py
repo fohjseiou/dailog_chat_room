@@ -48,3 +48,14 @@ class MessageService:
         await self.db.refresh(asst_msg)
 
         return MessageResponse.from_message_obj(user_msg), MessageResponse.from_message_obj(asst_msg)
+
+    async def delete_message(self, message_id: str) -> bool:
+        """Delete a message by ID"""
+        message = await self.db.execute(select(Message).where(Message.id == message_id))
+        message_obj = message.scalar_one_or_none()
+
+        if message_obj:
+            await self.db.delete(message_obj)
+            await self.db.commit()
+            return True
+        return False

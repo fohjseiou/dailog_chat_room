@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { chatApi, ChatRequest } from '../api/client';
 import { ChatStreamManager, StreamChunk } from '../api/streamingClient';
 
-interface Message {
+export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
@@ -12,17 +12,10 @@ interface Message {
     score: number;
   }>;
   streaming?: boolean;
-  intent?: string;
-  retrievedDocs?: Array<{
-    title: string;
-    score: number;
-  }>;
 }
 
 interface ThinkingState {
-  stage: 'idle' | 'routing' | 'retrieving' | 'generating' | 'done' | 'error';
-  intent?: string;
-  retrievedDocs?: Array<{ title: string; score: number }>;
+  stage: 'idle' | 'processing' | 'done' | 'error';
 }
 
 interface ChatState {
@@ -39,6 +32,8 @@ interface ChatState {
   setSessionId: (id: string | null) => void;
   clearMessages: () => void;
   setUseStreaming: (use: boolean) => void;
+  deleteMessage: (messageId: string) => Promise<void>;
+  clearError: () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -57,6 +52,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setUseStreaming: (use) => set({ useStreaming: use }),
 
+  clearError: () => set({ error: null, thinking: { stage: 'idle' } }),
+
+  deleteMessage: async (messageId: string) => {
+    const currentSessionId = get().sessionId;
+    if (!currentSessionId) return;
+
+    try {
+      await chatApi.deleteMessage(currentSessionId, messageId);
+      set((state) => ({
+        messages: state.messages.filter(msg => msg.id !== messageId)
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : '删除消息失败',
+      });
+    }
+  },
+
   loadMessages: async (sessionId: string) => {
     set({ isLoading: true, error: null });
     try {
@@ -68,7 +81,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
           content: m.content,
           timestamp: new Date(m.created_at),
           sources: m.msg_metadata?.sources || [],
-          intent: m.msg_metadata?.intent,
         })),
         isLoading: false,
       });
@@ -122,7 +134,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessageStream: async (content: string) => {
-    set({ isLoading: true, error: null, thinking: { stage: 'routing' } });
+    set({ isLoading: true, error: null, thinking: { stage: 'processing' } });
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -162,41 +174,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             break;
 
           case 'intent':
-            set({
-              thinking: {
-                stage: 'retrieving',
-                intent: chunk.data.intent,
-              }
-            });
-            // Update message with intent
-            set((state) => ({
-              messages: state.messages.map(msg =>
-                msg.id === assistantMessageId
-                  ? { ...msg, intent: chunk.data.intent }
-                  : msg
-              )
-            }));
+            // Just track that we received intent, don't store it
             break;
 
           case 'context':
-            set({
-              thinking: {
-                stage: 'generating',
-                intent: get().thinking.intent,
-                retrievedDocs: chunk.data.sources,
-              }
-            });
             sources = chunk.data.sources.map((s: any) => ({
               title: s.title,
               score: s.score
-            }));
-            // Update message with retrieved docs
-            set((state) => ({
-              messages: state.messages.map(msg =>
-                msg.id === assistantMessageId
-                  ? { ...msg, retrievedDocs: sources }
-                  : msg
-              )
             }));
             break;
 

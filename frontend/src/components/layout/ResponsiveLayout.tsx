@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { X, Menu } from 'lucide-react';
+import { Layout, Drawer, Button, Typography } from 'antd';
+import { CloseOutlined, MenuOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+
+const { Header } = Layout;
+const { Title } = Typography;
 
 interface ResponsiveLayoutProps {
   children: React.ReactNode;
@@ -10,59 +14,56 @@ export function ResponsiveLayout({ children, sidebarContent }: ResponsiveLayoutP
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <Layout className="h-screen bg-gray-50">
       {/* Desktop Sidebar */}
-      <div className="hidden md:block">
+      <Layout.Sider
+        width={256}
+        className="hidden md:block !bg-gray-50 border-r border-gray-200"
+      >
         {sidebarContent}
-      </div>
+      </Layout.Sider>
 
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Mobile Sidebar */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white transform transition-transform md:hidden ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+      {/* Mobile Sidebar Drawer */}
+      <Drawer
+        title={null}
+        placement="left"
+        onClose={() => setSidebarOpen(false)}
+        open={sidebarOpen}
+        width={256}
+        className="md:hidden"
+        styles={{
+          body: { padding: 0 },
+          header: { borderBottom: '1px solid #e5e7eb' },
+        }}
+        headerStyle={{ borderBottom: '1px solid #e5e7eb' }}
       >
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-bold">会话列表</h2>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <Title level={5} className="!mb-0">会话列表</Title>
         </div>
-        <div className="overflow-y-auto h-[calc(100%-60px)]">
-          {sidebarContent}
-        </div>
-      </div>
+        {sidebarContent}
+      </Drawer>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <Layout className="flex flex-col overflow-hidden">
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between p-4 bg-white border-b">
-          <button
+        <Header className="md:hidden flex items-center justify-between px-4 bg-white border-b border-gray-200 h-16">
+          <Button
+            type="text"
+            icon={<MenuOutlined />}
             onClick={() => setSidebarOpen(true)}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <h1 className="text-lg font-bold">法律咨询助手</h1>
-          <div className="w-9" />
-        </div>
+          />
+          <div className="flex items-center gap-2">
+            <SafetyCertificateOutlined className="text-blue-600" />
+            <Title level={5} className="!mb-0">法律咨询助手</Title>
+          </div>
+          <div style={{ width: 36 }} />
+        </Header>
 
         {/* Content */}
         <div className="flex-1 overflow-hidden">
           {children}
         </div>
-      </div>
-    </div>
+      </Layout>
+    </Layout>
   );
 }

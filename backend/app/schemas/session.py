@@ -21,6 +21,7 @@ class SessionResponse(SessionBase):
     updated_at: datetime
     summary: Optional[str] = None
     message_count: int
+    user_id: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,5 +33,6 @@ class SessionListResponse(BaseModel):
     updated_at: datetime
     summary: Optional[str] = None
     message_count: int
+    user_id: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,15 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../../stores/chatStore';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { ResponsiveLayout } from '../layout/ResponsiveLayout';
 import { SessionList } from '../common/SessionList';
+import { Empty, Alert, Space, Typography } from 'antd';
+import { SafetyCertificateOutlined } from '@ant-design/icons';
+
+const { Title, Paragraph } = Typography;
 
 export function ChatView() {
   const { messages, sessionId, loadMessages, isLoading, error, thinking, clearError } = useChatStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
 
   // Load messages if session exists and messages are empty
   useEffect(() => {
@@ -18,23 +23,53 @@ export function ChatView() {
     }
   }, [sessionId, loadMessages, messages.length]);
 
-  // Auto-scroll to bottom when messages change
+  // Check if user is near bottom (within 100px)
+  const checkIfNearBottom = () => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+      setIsNearBottom(distanceToBottom < 100);
+    }
+  };
+
+  // Auto-scroll to bottom when messages change, only if user is near bottom
+  // FIXED: Use requestAnimationFrame for better timing
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, thinking.stage]);
+    if (isNearBottom) {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'end'
+        });
+      });
+    }
+  }, [messages, thinking.stage, isNearBottom]);
+
+  // Track scroll position to detect if user is near bottom
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', checkIfNearBottom);
+      return () => container.removeEventListener('scroll', checkIfNearBottom);
+    }
+  }, []);
 
   return (
     <ResponsiveLayout sidebarContent={<SessionList />}>
       <div className="flex flex-col h-full">
         <div className="flex-1 overflow-y-auto p-4" ref={messagesContainerRef}>
           {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              <div className="text-center">
-                <div className="text-6xl mb-4">⚖️</div>
-                <h2 className="text-xl font-semibold mb-2">法律咨询助手</h2>
-                <p>请输入您的问题，我将为您提供法律信息参考</p>
-              </div>
-            </div>
+            <Empty
+              image={<SafetyCertificateOutlined className="text-6xl text-blue-200" />}
+              description={
+                <Space direction="vertical" size={4}>
+                  <Title level={4} className="!mb-0">法律咨询助手</Title>
+                  <Paragraph className="text-gray-500">请输入您的问题，我将为您提供法律信息参考</Paragraph>
+                </Space>
+              }
+              className="flex items-center justify-center h-full"
+            />
           ) : (
             messages.map((message) => (
               <MessageBubble key={message.id} message={message} />
@@ -42,11 +77,7 @@ export function ChatView() {
           )}
 
           {/* Thinking Indicator */}
-          <ThinkingIndicator
-            stage={thinking.stage}
-            intent={thinking.intent}
-            retrievedDocs={thinking.retrievedDocs}
-          />
+          <ThinkingIndicator stage={thinking.stage} />
 
           {/* Legacy Loading State */}
           {isLoading && thinking.stage === 'idle' && (
@@ -63,17 +94,14 @@ export function ChatView() {
 
           {/* Error Display */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-              <div className="flex items-center justify-between">
-                <p>{error}</p>
-                <button
-                  onClick={clearError}
-                  className="text-red-800 hover:text-red-900 font-medium text-sm"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+            <Alert
+              message={error}
+              type="error"
+              closable
+              onClose={clearError}
+              showIcon
+              className="mb-4"
+            />
           )}
 
           <div ref={messagesEndRef} />
