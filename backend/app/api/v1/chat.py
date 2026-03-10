@@ -1,4 +1,4 @@
-from typing import Dict, Any, AsyncIterator
+from typing import Dict, Any, AsyncIterator, Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,8 @@ from app.services.summary_service import SummaryService
 from app.agents.graph import get_agent_graph, get_streaming_agent_graph
 from app.agents.state import create_initial_state
 from app.schemas.message import ChatRequest
+from app.dependencies import get_current_user
+from app.models.user import User
 import logging
 import json
 
@@ -19,11 +21,18 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("")
-async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
+async def chat(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user)
+) -> Dict[str, Any]:
     """Send a message and get a response from the agent system"""
     session_service = SessionService(db)
     message_service = MessageService(db)
     agent_graph = get_agent_graph()
+
+    # Get user_id from authenticated user, or None for anonymous
+    user_id = current_user.id if current_user else None
 
     # Get or create session
     if request.session_id:
@@ -39,13 +48,13 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> Dict
             for msg in messages[-10:]  # Limit to last 10 messages
         ]
     else:
-        new_session = await session_service.create_session({"title": None})
+        new_session = await session_service.create_session({"title": None}, user_id=user_id)
         session_id = new_session.id
         conversation_history = []
 
     try:
-        # Prepare state for agent using factory function
-        state = create_initial_state(request.message, conversation_history)
+        # Prepare state for agent using factory function, passing user_id
+        state = create_initial_state(request.message, conversation_history, user_id=user_id)
 
         # Run the agent graph - use manual node execution for async compatibility
         from app.agents.nodes import intent_router_node, rag_retriever_node, response_generator_node
@@ -103,7 +112,8 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> Dict
 
 async def _stream_chat_events(
     request: ChatRequest,
-    db: AsyncSession
+    db: AsyncSession,
+    current_user: Optional[User] = None
 ) -> AsyncIterator[str]:
     """
     Generate SSE events for streaming chat
@@ -115,6 +125,9 @@ async def _stream_chat_events(
 
     # Import nodes for direct use
     from app.agents.nodes import intent_router_node, rag_retriever_node, response_generator_node_stream
+
+    # Get user_id from authenticated user, or None for anonymous
+    user_id = current_user.id if current_user else None
 
     # Get or create session
     if request.session_id:
@@ -131,7 +144,7 @@ async def _stream_chat_events(
             for msg in messages[-10:]
         ]
     else:
-        new_session = await session_service.create_session({"title": None})
+        new_session = await session_service.create_session({"title": None}, user_id=user_id)
         session_id = new_session.id
         conversation_history = []
 
@@ -139,8 +152,8 @@ async def _stream_chat_events(
         # Send session_id first
         yield _format_sse("session_id", {"session_id": session_id})
 
-        # Prepare state
-        state = create_initial_state(request.message, conversation_history)
+        # Prepare state with user_id
+        state = create_initial_state(request.message, conversation_history, user_id=user_id)
 
         # Run the streaming workflow manually
         full_response = ""
@@ -199,7 +212,8 @@ def _format_sse(event: str, data: Dict[str, Any]) -> str:
 @router.post("/stream")
 async def chat_stream(
     request: ChatRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user)
 ) -> StreamingResponse:
     """
     Send a message and get a streaming response via Server-Sent Events
@@ -213,7 +227,7 @@ async def chat_stream(
     - error: Error occurred
     """
     return StreamingResponse(
-        _stream_chat_events(request, db),
+        _stream_chat_events(request, db, current_user),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
