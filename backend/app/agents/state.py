@@ -17,11 +17,13 @@ class AgentState(TypedDict):
     sources: Optional[List[Dict[str, Any]]]
     response: Optional[str]
     error: Optional[str]
+    user_id: Optional[str]  # NEW: Track user for memory
 
 
 def create_initial_state(
     user_message: str,
-    conversation_history: List[Dict[str, str]]
+    conversation_history: List[Dict[str, str]],
+    user_id: Optional[str] = None
 ) -> AgentState:
     """Create initial state for agent workflow"""
     return {
@@ -32,5 +34,6 @@ def create_initial_state(
         "context_str": None,
         "sources": None,
         "response": None,
-        "error": None
+        "error": None,
+        "user_id": user_id
     }
