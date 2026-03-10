@@ -6,6 +6,8 @@ from app.database import get_db
 from app.services.session_service import SessionService
 from app.schemas.session import SessionCreate, SessionUpdate, SessionResponse, SessionListResponse
 from app.schemas.message import MessageResponse
+from app.dependencies import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -13,35 +15,58 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 @router.post("", response_model=SessionResponse)
 async def create_session(
     data: Optional[SessionCreate] = Body(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     """Create a new session"""
     service = SessionService(db)
     # Handle None case for creating session without title
     if data is None:
         data = SessionCreate(title=None)
-    return await service.create_session(data)
+    user_id = current_user.id if current_user else None
+    return await service.create_session(data, user_id=user_id)
 
 
 @router.get("", response_model=List[SessionListResponse])
 async def list_sessions(
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     """List all sessions"""
     service = SessionService(db)
-    return await service.list_sessions()
+
+    # User isolation: authenticated users see only their own sessions
+    # Anonymous users see only anonymous sessions (user_id IS NULL)
+    if current_user:
+        # Authenticated user - show only their sessions
+        return await service.list_sessions(user_id=str(current_user.id))
+    else:
+        # Anonymous user - show only anonymous sessions
+        # We need to filter for sessions where user_id IS NULL
+        # The service layer returns all sessions when user_id is None,
+        # so we filter in the API layer
+        all_sessions = await service.list_sessions(user_id=None)
+        return [s for s in all_sessions if s.user_id is None]
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
 async def get_session(
     session_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user)
 ):
     """Get a session by ID with messages"""
     service = SessionService(db)
     session = await service.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    # Ownership check: users can only access their own sessions
+    # Anonymous sessions (user_id is None) can be accessed by anyone
+    if session.user_id is not None:
+        if current_user is None or current_user.id != session.user_id:
+            raise HTTPException(status_code=403, detail="Forbidden: You can only access your own sessions")
+
     return session
 
 
