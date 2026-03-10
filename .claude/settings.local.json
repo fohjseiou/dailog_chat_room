@@ -48,7 +48,29 @@
       "Bash(cd backend && SECRET_KEY=test-secret-key-for-testing-purposes-only-min-32-chars pytest tests/models/test_session_user.py -v)",
       "Bash(cd backend && pip list | grep -i bcrypt)",
       "Bash(cd backend && pip list | grep -i passlib)",
-      "Bash(cd backend && pip install \"bcrypt<4.1.0\")"
+      "Bash(cd backend && pip install \"bcrypt<4.1.0\")",
+      "Bash(cd \"D:/vibe-coding/dialog_chat_room/frontend\" && npm test -- authStore.test.ts --run)",
+      "Bash(cd \"D:/vibe-coding/dialog_chat_room/frontend\" && npm run type-check)",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run)",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | tail -50)",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | grep -A 5 \"FAIL\\\\|✓\\\\|passed\\\\|failed\" | head -100)",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | tail -30)",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | grep -E \"FAIL|PASS|Tests\" | head -20)",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | grep -A 10 \"renders login form correctly\")",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | tail -20)",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | grep -E \"Test Files|Tests |PASS|FAIL\" | tail -5)",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | grep -A 12 \"renders login form correctly\" | grep -A 10 \"Error\\\\|received\")",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | grep -E \"Test Files|Tests \" | tail -2)",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | grep \"FAIL\" | head -20)",
+      "Bash(cd \"D:\\\\vibe-coding\\\\dialog_chat_room\\\\frontend\" && npm test -- LoginForm.test.tsx --run 2>&1 | grep -A 5 \"renders login form correctly\" | head -15)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/frontend && npm test -- LoginForm.test.tsx --run)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/frontend && npm test -- LoginForm.test.tsx --run 2>&1 | grep -E \"\\(PASS|FAIL|Tests:|passed|failed\\)\")",
+      "Bash(cd backend && set -a && source .env.test && set +a && python -m pytest tests/integration/test_user_workflow_e2e.py -v --tb=short 2>&1 | tail -30)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/frontend && npm test -- --coverage --watchAll=false)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/backend && mv tests/schemas/test_user.py tests/schemas/test_user_schema.py)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/frontend && npm test -- --coverage --run)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/frontend && npm test -- --run 2>&1 | grep -E \"\\(Test Files|Tests|PASS|FAIL\\)\" | head -20)",
+      "Bash(cd /d/vibe-coding/dialog_chat_room/frontend && npm test -- --run 2>&1 | tail -30)"
     ]
   }
 }
