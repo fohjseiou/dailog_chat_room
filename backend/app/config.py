@@ -3,7 +3,7 @@
 import os
 from typing import Optional, List
 from pydantic_settings import BaseSettings
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator, model_validator
 from functools import lru_cache
 from langchain_community.chat_models.tongyi import ChatTongyi
 from langchain_openai import ChatOpenAI
@@ -55,6 +55,47 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",")]
+
+    @model_validator(mode="after")
+    def validate_secret_key(self):
+        """Validate SECRET_KEY is secure enough for production use."""
+        insecure_defaults = [
+            "your-secret-key-change-in-production-min-32-chars",
+            "secret",
+            "password",
+            "changeme",
+            "your-secret-key",
+            "secret-key",
+            "test-secret-key",
+            "dev-secret-key",
+        ]
+
+        secret_lower = self.secret_key.lower()
+
+        # Check minimum length (should be at least 32 characters)
+        if len(self.secret_key) < 32:
+            raise ValueError(
+                f"SECRET_KEY must be at least 32 characters long. "
+                f"Current length: {len(self.secret_key)}. "
+                f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+
+        # Check for insecure placeholder values
+        for insecure in insecure_defaults:
+            if secret_lower == insecure.lower():
+                raise ValueError(
+                    f"SECRET_KEY cannot use placeholder value '{insecure}'. "
+                    f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                )
+
+        # Check if it contains obvious placeholder patterns
+        if "change" in secret_lower and "production" in secret_lower:
+            raise ValueError(
+                f"SECRET_KEY appears to be a placeholder value. "
+                f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+
+        return self
 
     model_config = ConfigDict(env_file=".env")
 
