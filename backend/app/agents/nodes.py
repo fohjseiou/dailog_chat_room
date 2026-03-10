@@ -1,8 +1,10 @@
-from typing import Dict, Any, List, AsyncIterator
+from typing import Dict, Any, List, AsyncIterator, Optional
 from app.agents.state import AgentState
 from app.agents.utils import convert_to_langchain_messages
 from app.services.document_service import get_document_service
 from app.services.llm_service import get_llm_service
+from app.services.memory_service import MemoryService
+from app.database import get_db
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import SystemMessage
@@ -95,13 +97,117 @@ def _format_context_for_prompt(results: List[Dict[str, Any]]) -> str:
     return "\n\n".join(context_parts)
 
 
+async def _enhance_prompt_with_memory(
+    base_prompt: str,
+    user_id: str,
+    user_message: str,
+    db
+) -> str:
+    """
+    Enhance system prompt with user memory (short-term, long-term, preferences).
+
+    Args:
+        base_prompt: Original system prompt
+        user_id: User identifier
+        user_message: Current user message for context
+        db: Database session
+
+    Returns:
+        Enhanced prompt with memory context
+    """
+    try:
+        # Initialize MemoryService
+        memory_service = MemoryService(db)
+
+        # Retrieve short-term context (last N sessions)
+        short_term_context = await memory_service.get_short_term_context(
+            user_id=user_id,
+            limit=3
+        )
+
+        # Retrieve long-term memory (facts + summaries)
+        long_term_memory = await memory_service.get_long_term_memory(
+            user_id=user_id,
+            query=user_message,
+            top_k=5
+        )
+
+        # Retrieve user preferences
+        preferences = await memory_service.get_preferences(user_id=user_id)
+
+        # Build memory context string
+        memory_context_parts = []
+
+        # Add short-term context
+        if short_term_context:
+            context_summary = "短期对话历史（最近几次会话）：\n"
+            for ctx in short_term_context:
+                context_summary += f"- 会话: {ctx.get('title', 'N/A')}\n"
+            memory_context_parts.append(context_summary)
+
+        # Add long-term memory
+        if long_term_memory:
+            memory_summary = "长期记忆（相关信息）：\n"
+            for mem in long_term_memory[:3]:  # Top 3 most relevant
+                fact = mem.get("fact", "")
+                if fact:
+                    memory_summary += f"- {fact}\n"
+            memory_context_parts.append(memory_summary)
+
+        # Add user preferences
+        if preferences:
+            pref_summary = "用户偏好：\n"
+            for key, value in preferences.items():
+                pref_summary += f"- {key}: {value}\n"
+            memory_context_parts.append(pref_summary)
+
+        # Combine with base prompt
+        if memory_context_parts:
+            memory_section = "\n".join(memory_context_parts)
+            enhanced_prompt = f"""{base_prompt}
+
+用户记忆上下文：
+{memory_section}
+
+请利用以上记忆信息提供个性化回复。"""
+        else:
+            enhanced_prompt = base_prompt
+
+        return enhanced_prompt
+
+    except Exception as e:
+        logger.error(f"Error enhancing prompt with memory: {e}")
+        # Return base prompt on error (graceful degradation)
+        return base_prompt
+
+
 async def response_generator_node(state: AgentState) -> Dict[str, Any]:
-    """Generate response using LangChain ChatTongyi."""
+    """Generate response using LangChain ChatTongyi with memory integration."""
     llm_service = get_llm_service()
 
     try:
-        # Build system prompt
+        # Build base system prompt
         system_prompt = build_system_prompt(state.get("context_str", ""))
+
+        # Enhance prompt with memory if user_id exists
+        user_id: Optional[str] = state.get("user_id")
+        if user_id:
+            # Get database session
+            db_gen = get_db()
+            db = await db_gen.__anext__()
+
+            try:
+                system_prompt = await _enhance_prompt_with_memory(
+                    base_prompt=system_prompt,
+                    user_id=user_id,
+                    user_message=state["user_message"],
+                    db=db
+                )
+            except Exception as e:
+                logger.error(f"Error retrieving user memory: {e}")
+                # Continue with base prompt if memory retrieval fails
+            finally:
+                await db_gen.aclose()
 
         # Build LangChain prompt template
         prompt_template = ChatPromptTemplate.from_messages([
@@ -133,12 +239,32 @@ async def response_generator_node(state: AgentState) -> Dict[str, Any]:
 
 
 async def response_generator_node_stream(state: AgentState) -> AsyncIterator[Dict[str, Any]]:
-    """Generate streaming response using LangChain ChatTongyi."""
+    """Generate streaming response using LangChain ChatTongyi with memory integration."""
     llm_service = get_llm_service()
 
     try:
-        # Build system prompt
+        # Build base system prompt
         system_prompt = build_system_prompt(state.get("context_str", ""))
+
+        # Enhance prompt with memory if user_id exists
+        user_id: Optional[str] = state.get("user_id")
+        if user_id:
+            # Get database session
+            db_gen = get_db()
+            db = await db_gen.__anext__()
+
+            try:
+                system_prompt = await _enhance_prompt_with_memory(
+                    base_prompt=system_prompt,
+                    user_id=user_id,
+                    user_message=state["user_message"],
+                    db=db
+                )
+            except Exception as e:
+                logger.error(f"Error retrieving user memory for streaming: {e}")
+                # Continue with base prompt if memory retrieval fails
+            finally:
+                await db_gen.aclose()
 
         # Build LangChain prompt template
         prompt_template = ChatPromptTemplate.from_messages([
