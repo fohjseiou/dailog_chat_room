@@ -1,9 +1,13 @@
+"""LLM service using LangChain ChatTongyi for Qwen integration."""
+
 from typing import List, Dict, Any, AsyncIterator, Optional
-import dashscope
-from dashscope import Generation
+from langchain_community.chat_models.tongyi import ChatTongyi
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import BaseMessage
 from app.config import get_settings
+from app.agents.utils import convert_to_langchain_messages
 import logging
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +28,26 @@ FALLBACK_ERROR_MESSAGE = "抱歉，我现在无法回答。请稍后再试。如
 
 
 class LLMService:
-    """Service for interacting with DashScope Qwen LLM"""
+    """Service for interacting with Qwen LLM via LangChain ChatTongyi."""
 
     def __init__(self):
         settings = get_settings()
-        dashscope.api_key = settings.dashscope_api_key
-        self.model = settings.dashscope_model
+        # Use LangChain ChatTongyi instead of DashScope SDK
+        self.llm = ChatTongyi(
+            model=settings.dashscope_model,
+            dashscope_api_key=settings.dashscope_api_key,
+            temperature=DEFAULT_TEMPERATURE,
+            top_p=DEFAULT_TOP_P,
+            max_tokens=MAX_TOKENS,
+        )
+
+    def _build_prompt_template(self, system_prompt: Optional[str] = None) -> ChatPromptTemplate:
+        """Build LangChain prompt template."""
+        return ChatPromptTemplate.from_messages([
+            ("system", system_prompt or DEFAULT_SYSTEM_PROMPT),
+            MessagesPlaceholder(variable_name="history"),
+            ("human", "{user_message}")
+        ])
 
     async def generate_response(
         self,
@@ -38,7 +56,7 @@ class LLMService:
         system_prompt: Optional[str] = None
     ) -> str:
         """
-        Generate a response from Qwen LLM
+        Generate a response using LangChain ChatTongyi.
 
         Args:
             message: The user's current message
@@ -49,53 +67,28 @@ class LLMService:
             The LLM's response as a string
         """
         try:
-            # Build messages for Qwen API (Qwen uses list format)
-            messages = []
+            # Build prompt template
+            prompt = self._build_prompt_template(system_prompt)
 
-            # Add system prompt
-            messages.append({
-                "role": "system",
-                "content": system_prompt or DEFAULT_SYSTEM_PROMPT
-            })
+            # Build LCEL chain
+            chain = prompt | self.llm | StrOutputParser()
 
-            # Add conversation history (last N messages)
-            for msg in conversation_history[-MAX_HISTORY_MESSAGES:]:
-                messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
-
-            # Add current message
-            messages.append({
-                "role": "user",
-                "content": message
-            })
-
-            # Call DashScope Qwen API (run in thread pool since it's sync)
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                lambda: Generation.call(
-                    model=self.model,
-                    messages=messages,
-                    result_format='message',
-                    temperature=DEFAULT_TEMPERATURE,
-                    top_p=DEFAULT_TOP_P,
-                    max_tokens=MAX_TOKENS
-                )
+            # Convert history to LangChain format
+            history_messages = convert_to_langchain_messages(
+                conversation_history[-MAX_HISTORY_MESSAGES:]
             )
 
-            if response.status_code != 200:
-                logger.error(f"DashScope API error: {response.code} - {response.message}")
-                return FALLBACK_ERROR_MESSAGE
+            # Invoke chain
+            response = await chain.ainvoke({
+                "history": history_messages,
+                "user_message": message
+            })
 
-            assistant_message = response.output.choices[0].message.content
-            logger.info(f"Qwen response generated, tokens used: {response.usage.total_tokens}")
-            return assistant_message
+            logger.info("ChatTongyi response generated successfully")
+            return response
 
         except Exception as e:
-            logger.error(f"Error generating Qwen response: {e}")
-            # Return a fallback error message
+            logger.error(f"Error generating ChatTongyi response: {e}")
             return FALLBACK_ERROR_MESSAGE
 
     async def generate_response_stream(
@@ -105,7 +98,7 @@ class LLMService:
         system_prompt: Optional[str] = None
     ) -> AsyncIterator[str]:
         """
-        Generate a streaming response from Qwen
+        Generate a streaming response using LangChain ChatTongyi.
 
         Args:
             message: The user's current message
@@ -116,56 +109,27 @@ class LLMService:
             Chunks of the response as they arrive
         """
         try:
-            messages = []
+            # Build prompt template
+            prompt = self._build_prompt_template(system_prompt)
 
-            messages.append({
-                "role": "system",
-                "content": system_prompt or DEFAULT_SYSTEM_PROMPT
-            })
+            # Build LCEL chain
+            chain = prompt | self.llm | StrOutputParser()
 
-            for msg in conversation_history[-MAX_HISTORY_MESSAGES:]:
-                messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
+            # Convert history to LangChain format
+            history_messages = convert_to_langchain_messages(
+                conversation_history[-MAX_HISTORY_MESSAGES:]
+            )
 
-            messages.append({
-                "role": "user",
-                "content": message
-            })
-
-            # Stream the response from Qwen (run in thread pool)
-            loop = asyncio.get_event_loop()
-
-            # Get the generator
-            def get_stream_generator():
-                return Generation.call(
-                    model=self.model,
-                    messages=messages,
-                    temperature=DEFAULT_TEMPERATURE,
-                    top_p=DEFAULT_TOP_P,
-                    stream=True,
-                    result_format='message',
-                    max_tokens=MAX_TOKENS
-                )
-
-            stream_gen = await loop.run_in_executor(None, get_stream_generator)
-
-            # Yield chunks from the stream (DashScope returns the full content in each iteration if using result_format='message')
-            last_content = ""
-            for response in stream_gen:
-                if response.status_code == 200 and response.output:
-                    for choice in response.output.choices:
-                        if choice.message and choice.message.content:
-                            full_content = choice.message.content
-                            # Calculate delta
-                            delta = full_content[len(last_content):]
-                            if delta:
-                                last_content = full_content
-                                yield delta
+            # Stream response using LangChain astream
+            async for chunk in chain.astream({
+                "history": history_messages,
+                "user_message": message
+            }):
+                if chunk:
+                    yield chunk
 
         except Exception as e:
-            logger.error(f"Error in streaming Qwen response: {e}")
+            logger.error(f"Error in streaming ChatTongyi response: {e}")
             yield FALLBACK_ERROR_MESSAGE
 
 
@@ -174,7 +138,7 @@ _llm_service: Optional[LLMService] = None
 
 
 def get_llm_service() -> LLMService:
-    """Get or create the LLM service singleton"""
+    """Get or create the LLM service singleton."""
     global _llm_service
     if _llm_service is None:
         _llm_service = LLMService()
