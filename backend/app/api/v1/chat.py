@@ -45,7 +45,7 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> Dict
 
     try:
         # Prepare state for agent using factory function
-        state = create_initial_state(str(session_id), request.message, conversation_history)
+        state = create_initial_state(request.message, conversation_history)
 
         # Run the agent graph - use manual node execution for async compatibility
         from app.agents.nodes import intent_router_node, rag_retriever_node, response_generator_node
@@ -140,7 +140,7 @@ async def _stream_chat_events(
         yield _format_sse("session_id", {"session_id": session_id})
 
         # Prepare state
-        state = create_initial_state(str(session_id), request.message, conversation_history)
+        state = create_initial_state(request.message, conversation_history)
 
         # Run the streaming workflow manually
         full_response = ""

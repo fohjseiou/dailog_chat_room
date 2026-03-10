@@ -1,33 +1,36 @@
-from typing import TypedDict, List, Dict, Any
+"""Agent state definition for LangGraph workflow."""
 
-# Define the state for our agent graph
+from typing import TypedDict, List, Dict, Any, Optional
+
+
 class AgentState(TypedDict):
-    """State for the legal consultation agent"""
-    session_id: str
+    """State for the legal consultation agent workflow."""
+
+    # Required fields
     user_message: str
     conversation_history: List[Dict[str, str]]
     user_intent: str
-    retrieved_context: List[Dict[str, Any]]
-    context_str: str
-    sources: List[Dict[str, Any]]
-    response: str
-    error: str
+
+    # Optional fields
+    retrieved_context: Optional[List[Dict[str, Any]]]
+    context_str: Optional[str]
+    sources: Optional[List[Dict[str, Any]]]
+    response: Optional[str]
+    error: Optional[str]
 
 
 def create_initial_state(
-    session_id: str,
     user_message: str,
     conversation_history: List[Dict[str, str]]
 ) -> AgentState:
     """Create initial state for agent workflow"""
     return {
-        "session_id": session_id,
         "user_message": user_message,
         "conversation_history": conversation_history,
         "user_intent": "",
-        "retrieved_context": [],
-        "context_str": "",
-        "sources": [],
-        "response": "",
-        "error": ""
+        "retrieved_context": None,
+        "context_str": None,
+        "sources": None,
+        "response": None,
+        "error": None
     }
