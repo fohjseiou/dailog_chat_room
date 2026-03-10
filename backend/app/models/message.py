@@ -16,6 +16,7 @@ class Message(Base):
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     _msg_metadata = Column("metadata", Text, nullable=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="set null"), nullable=True)
 
     session = relationship("Session", back_populates="messages")
 

@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, DateTime, func
+from sqlalchemy.orm import relationship
 from app.database import Base
 import uuid
 
@@ -12,4 +13,4 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     last_login = Column(DateTime, nullable=True)
 
-    # Relationships will be added after Session model has user_id foreign key
+    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
