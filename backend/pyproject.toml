@@ -23,6 +23,7 @@ dependencies = [
     "structlog>=24.1.0",
     "dashscope>=1.14.0",
     "passlib[bcrypt]>=1.7.4",
+    "bcrypt<4.1.0",  # Pin for passlib compatibility
 ]
 
 [project.optional-dependencies]
