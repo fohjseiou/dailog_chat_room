@@ -54,3 +54,12 @@ def test_client(test_db):
         yield client
 
     app.dependency_overrides.clear()
+
+@pytest.fixture
+async def test_user(db_session):
+    from app.models.user import User
+    user = User(username="testuser", password_hash="hash")
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
