@@ -1,11 +1,37 @@
 from typing import Dict, Any, List, AsyncIterator
 from app.agents.state import AgentState
+from app.agents.utils import convert_to_langchain_messages
 from app.services.document_service import get_document_service
 from app.services.llm_service import get_llm_service
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import SystemMessage
 import logging
 import json
 
 logger = logging.getLogger(__name__)
+
+# Default system prompt for legal consultation
+DEFAULT_LEGAL_SYSTEM_PROMPT = """你是一个专业的法律咨询助手，为普通公众提供初步的法律信息参考。
+
+重要原则：
+1. 仅提供法律信息参考，不构成正式法律意见
+2. 建议用户在重大事项上咨询专业律师
+3. 基于提供的法律知识库回答，引用相关法规
+4. 回答要清晰、易懂，避免过度专业术语
+
+参考信息：
+{context_str}
+
+请基于以上参考信息回答用户的问题。如果参考信息不足，请说明这一点。"""
+
+# System prompt builder
+def build_system_prompt(context_str: str = "") -> str:
+    """Build system prompt with optional RAG context."""
+    if context_str:
+        return DEFAULT_LEGAL_SYSTEM_PROMPT.format(context_str=context_str)
+    return """你是一个友好的助手，为用户提供帮助。
+回答要简洁、友好、有用。"""
 
 
 async def intent_router_node(state: AgentState) -> Dict[str, Any]:
@@ -70,32 +96,31 @@ def _format_context_for_prompt(results: List[Dict[str, Any]]) -> str:
 
 
 async def response_generator_node(state: AgentState) -> Dict[str, Any]:
-    """Generate response using Qwen LLM"""
+    """Generate response using LangChain ChatTongyi."""
     llm_service = get_llm_service()
 
     try:
-        # Build system prompt based on context
-        if state.get("context_str"):
-            system_prompt = f"""你是一个专业的法律咨询助手，为普通公众提供初步的法律信息参考。
+        # Build system prompt
+        system_prompt = build_system_prompt(state.get("context_str", ""))
 
-重要原则：
-1. 仅提供法律信息参考，不构成正式法律意见
-2. 建议用户在重大事项上咨询专业律师
-3. 基于提供的法律知识库回答，引用相关法规
-4. 回答要清晰、易懂，避免过度专业术语
+        # Build LangChain prompt template
+        prompt_template = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            MessagesPlaceholder(variable_name="history"),
+            ("human", "{user_message}")
+        ])
 
-参考信息：
-{state['context_str']}
+        # Build LCEL chain
+        chain = prompt_template | llm_service.llm | StrOutputParser()
 
-请基于以上参考信息回答用户的问题。如果参考信息不足，请说明这一点。"""
-        else:
-            system_prompt = None
+        # Convert conversation history
+        history_messages = convert_to_langchain_messages(state["conversation_history"])
 
-        response = await llm_service.generate_response(
-            message=state["user_message"],
-            conversation_history=state["conversation_history"],
-            system_prompt=system_prompt
-        )
+        # Invoke chain
+        response = await chain.ainvoke({
+            "history": history_messages,
+            "user_message": state["user_message"]
+        })
 
         return {"response": response, "error": ""}
 
@@ -108,26 +133,25 @@ async def response_generator_node(state: AgentState) -> Dict[str, Any]:
 
 
 async def response_generator_node_stream(state: AgentState) -> AsyncIterator[Dict[str, Any]]:
-    """Generate streaming response using Qwen LLM"""
+    """Generate streaming response using LangChain ChatTongyi."""
     llm_service = get_llm_service()
 
     try:
-        # Build system prompt based on context
-        if state.get("context_str"):
-            system_prompt = f"""你是一个专业的法律咨询助手，为普通公众提供初步的法律信息参考。
+        # Build system prompt
+        system_prompt = build_system_prompt(state.get("context_str", ""))
 
-重要原则：
-1. 仅提供法律信息参考，不构成正式法律意见
-2. 建议用户在重大事项上咨询专业律师
-3. 基于提供的法律知识库回答，引用相关法规
-4. 回答要清晰、易懂，避免过度专业术语
+        # Build LangChain prompt template
+        prompt_template = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            MessagesPlaceholder(variable_name="history"),
+            ("human", "{user_message}")
+        ])
 
-参考信息：
-{state['context_str']}
+        # Build LCEL chain
+        chain = prompt_template | llm_service.llm | StrOutputParser()
 
-请基于以上参考信息回答用户的问题。如果参考信息不足，请说明这一点。"""
-        else:
-            system_prompt = None
+        # Convert conversation history
+        history_messages = convert_to_langchain_messages(state["conversation_history"])
 
         # Yield start event
         yield {
@@ -142,18 +166,18 @@ async def response_generator_node_stream(state: AgentState) -> AsyncIterator[Dic
                 "data": {"sources": state["sources"]}
             }
 
-        # Stream the response
+        # Stream response using LangChain astream
         full_response = ""
-        async for chunk in llm_service.generate_response_stream(
-            message=state["user_message"],
-            conversation_history=state["conversation_history"],
-            system_prompt=system_prompt
-        ):
-            full_response += chunk
-            yield {
-                "event": "token",
-                "data": {"chunk": chunk, "full_response": full_response}
-            }
+        async for chunk in chain.astream({
+            "history": history_messages,
+            "user_message": state["user_message"]
+        }):
+            if chunk:
+                full_response += chunk
+                yield {
+                    "event": "token",
+                    "data": {"chunk": chunk, "full_response": full_response}
+                }
 
         # Yield end event
         yield {
