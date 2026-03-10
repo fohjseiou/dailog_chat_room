@@ -67,6 +67,30 @@ export interface DocumentUploadParams {
   file: File;
 }
 
+// Auth Types
+export interface User {
+  id: string;
+  username: string;
+  created_at: string;
+  last_login: string | null;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  user: User;
+}
+
 // Chat API
 export const chatApi = {
   sendMessage: async (data: ChatRequest): Promise<ChatResponse> => {
@@ -139,6 +163,24 @@ export const knowledgeApi = {
 
   getStats: async (): Promise<KnowledgeStats> => {
     const response = await api.get<KnowledgeStats>('/knowledge/stats');
+    return response.data;
+  },
+};
+
+// Auth API
+export const authApi = {
+  login: async (credentials: LoginRequest): Promise<TokenResponse> => {
+    const response = await api.post<TokenResponse>('/auth/login', credentials);
+    return response.data;
+  },
+
+  register: async (userData: RegisterRequest): Promise<User> => {
+    const response = await api.post<User>('/auth/register', userData);
+    return response.data;
+  },
+
+  getCurrentUser: async (): Promise<User> => {
+    const response = await api.get<User>('/auth/me');
     return response.data;
   },
 };
