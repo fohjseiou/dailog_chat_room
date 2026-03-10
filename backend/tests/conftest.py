@@ -56,9 +56,28 @@ def test_client(test_db):
     app.dependency_overrides.clear()
 
 @pytest.fixture
+async def test_user_with_password(db_session):
+    from app.services.auth_service import AuthService
+    from app.models.user import User
+
+    # Create a user with known password hash
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    hashed = pwd_context.hash("testpassword123")
+
+    user = User(username="logintest", password_hash=hashed)
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+@pytest.fixture
 async def test_user(db_session):
     from app.models.user import User
-    user = User(username="testuser", password_hash="hash")
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    hashed = pwd_context.hash("testpassword")
+    user = User(username="testuser", password_hash=hashed)
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
