@@ -7,7 +7,8 @@ from app.database import get_db
 from app.services.session_service import SessionService
 from app.services.message_service import MessageService
 from app.services.summary_service import SummaryService
-from app.agents.graph import get_agent_graph, get_streaming_agent_graph
+from app.services.memory_extraction_service import MemoryExtractionService
+from app.agents.graph import get_unified_agent_graph
 from app.agents.state import create_initial_state
 from app.schemas.message import ChatRequest
 from app.dependencies import get_current_user
@@ -26,51 +27,35 @@ async def chat(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user)
 ) -> Dict[str, Any]:
-    """Send a message and get a response from the agent system"""
+    """
+    Send a message and get a response from the agent system.
+
+    Uses LangGraph ainvoke for execution.
+    """
     session_service = SessionService(db)
     message_service = MessageService(db)
-    agent_graph = get_agent_graph()
 
     # Get user_id from authenticated user, or None for anonymous
     user_id = current_user.id if current_user else None
 
-    # Get or create session
-    if request.session_id:
-        session = await session_service.get_session(request.session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        session_id = request.session_id
-
-        # Get conversation history (limited to last 10 messages for performance)
-        messages = await message_service.get_messages_by_session(session_id)
-        conversation_history = [
-            {"role": msg.role, "content": msg.content}
-            for msg in messages[-10:]  # Limit to last 10 messages
-        ]
-    else:
-        new_session = await session_service.create_session({"title": None}, user_id=user_id)
-        session_id = new_session.id
-        conversation_history = []
+    # Prepare session and history
+    session_id, conversation_history = await _prepare_session(
+        session_service, message_service, request, user_id
+    )
 
     try:
-        # Prepare state for agent using factory function, passing user_id
-        state = create_initial_state(request.message, conversation_history, user_id=user_id)
+        # Create initial state
+        state = create_initial_state(
+            user_message=request.message,
+            conversation_history=conversation_history,
+            user_id=user_id,
+            session_id=session_id,
+            streaming=False
+        )
 
-        # Run the agent graph - use manual node execution for async compatibility
-        from app.agents.nodes import intent_router_node, rag_retriever_node, response_generator_node
-
-        # Execute nodes sequentially
-        intent_result = await intent_router_node(state)
-        state.update(intent_result)
-
-        if intent_result.get("user_intent") == "legal_consultation":
-            rag_result = await rag_retriever_node(state)
-            state.update(rag_result)
-
-        response_result = await response_generator_node(state)
-        state.update(response_result)
-
-        final_state = state
+        # Execute graph using ainvoke
+        agent_graph = get_unified_agent_graph()
+        final_state = await agent_graph.ainvoke(state)
 
         # Extract response
         response_content = final_state.get("response", "")
@@ -87,7 +72,7 @@ async def chat(
             response_content,
             {
                 "type": "agent_response",
-                "model": "qwen-via-langgraph",
+                "model": "qwen-langgraph",
                 "sources": sources,
                 "intent": final_state.get("user_intent", "unknown")
             }
@@ -101,9 +86,6 @@ async def chat(
             "response": response_content,
             "sources": sources
         }
-
-        # Trigger async summary generation if needed
-        await _maybe_generate_summary(db, session_id)
 
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}", exc_info=True)
@@ -203,6 +185,34 @@ async def _stream_chat_events(
         yield _format_sse("error", {"error": str(e)})
 
 
+async def _prepare_session(
+    session_service: SessionService,
+    message_service: MessageService,
+    request: ChatRequest,
+    user_id: Optional[str]
+) -> tuple[str, list[Dict]]:
+    """
+    Prepare session and conversation history.
+
+    Returns:
+        tuple of (session_id, conversation_history)
+    """
+    if request.session_id:
+        session = await session_service.get_session(request.session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        messages = await message_service.get_messages_by_session(request.session_id)
+        conversation_history = [
+            {"role": msg.role, "content": msg.content}
+            for msg in messages[-10:]  # Limit to last 10 messages
+        ]
+        return request.session_id, conversation_history
+    else:
+        new_session = await session_service.create_session({"title": None}, user_id=user_id)
+        return new_session.id, []
+
+
 def _format_sse(event: str, data: Dict[str, Any]) -> str:
     """Format data as Server-Sent Event"""
     data_str = json.dumps(data, ensure_ascii=False)
@@ -238,7 +248,7 @@ async def chat_stream(
 
 
 async def _maybe_generate_summary(db: AsyncSession, session_id: str) -> None:
-    """Check if summary should be generated and generate it asynchronously"""
+    """Check if summary should be generated and generate it asynchronously (legacy, kept for compatibility)"""
     try:
         summary_service = SummaryService(db)
         if await summary_service.should_generate_summary(session_id):
@@ -311,4 +321,56 @@ async def regenerate_session_summary(
         "session_id": session_id,
         "summary": summary,
         "message": "Summary regenerated successfully"
+    }
+
+
+@router.post("/sessions/{session_id}/end")
+async def end_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    End a session and trigger final summary generation for long-term memory.
+
+    This should be called when user leaves a session or navigates away.
+
+    - **session_id**: Session UUID
+    """
+    from app.services.session_service import SessionService
+
+    # Check if session exists and user has access
+    session_service = SessionService(db)
+    session = await session_service.get_session(session_id)
+
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Check ownership
+    if current_user and session.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    user_id = current_user.id if current_user else session.user_id
+
+    # Generate final summary for long-term memory
+    if user_id:
+        try:
+            extraction_service = MemoryExtractionService(db)
+            summary = await extraction_service.generate_and_store_summary(user_id, session_id)
+
+            return {
+                "session_id": session_id,
+                "summary": summary,
+                "message": "Session ended. Summary saved to long-term memory."
+            }
+        except Exception as e:
+            logger.error(f"Error generating final summary: {e}")
+            return {
+                "session_id": session_id,
+                "message": "Session ended, but summary generation failed."
+            }
+
+    return {
+        "session_id": session_id,
+        "message": "Session ended."
     }
