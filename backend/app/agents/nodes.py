@@ -42,8 +42,8 @@ async def intent_router_node(state: AgentState) -> Dict[str, Any]:
     """Classify user intent"""
     message = state["user_message"]
 
-    # Check for case_search command first (before lowercasing)
-    if message.startswith("search_cases:"):
+    # Check for case search command (case-insensitive)
+    if message.lower().startswith("search_cases:"):
         return {"user_intent": "case_search"}
 
     # Simple keyword-based intent classification
@@ -423,6 +423,7 @@ async def doc_analyzer_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
+# 案例搜索节点
 async def case_search_node(state: AgentState) -> Dict[str, Any]:
     """
     Handle case search requests using LLM tool calling.
@@ -442,8 +443,19 @@ async def case_search_node(state: AgentState) -> Dict[str, Any]:
     llm_service = get_llm_service()
     tool_registry = get_tool_registry()
 
-    # Extract query from command
-    query = state["user_message"].replace("search_cases:", "").strip()
+    # Extract query from command (use original message for slicing)
+    original_message = state["user_message"]
+    if original_message.lower().startswith("search_cases:"):
+        query = original_message[len("search_cases:"):].strip()
+    else:
+        query = original_message.replace("search_cases:", "").strip()
+
+    # Validate query
+    if not query:
+        return {
+            "response": "请提供搜索关键词。例如：search_cases:劳动合同纠纷",
+            "error": "empty_query"
+        }
 
     # Get the search_cases tool
     search_cases_tool = tool_registry.get_tool("search_cases")
@@ -481,6 +493,7 @@ async def case_search_node(state: AgentState) -> Dict[str, Any]:
 
     try:
         response = await chain.ainvoke({"query": query})
+        logger.info(f"Case search completed for query: {query[:50]}")
         return {"response": response, "error": ""}
     except Exception as e:
         logger.error(f"Error in case_search_node: {e}")
