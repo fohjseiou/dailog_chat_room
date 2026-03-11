@@ -1,4 +1,5 @@
 import { ChatRequest } from './client';
+import { useAuthStore } from '../stores/authStore';
 
 export interface StreamChunk {
   event: string;
@@ -20,11 +21,18 @@ export async function* streamChat(
 ): AsyncGenerator<StreamChunk> {
   const url = `${apiBaseUrl}/api/v1/chat/stream`;
 
+  // Get auth token
+  const token = useAuthStore.getState().token;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(request),
   });
 
@@ -86,11 +94,18 @@ export class ChatStreamManager {
     try {
       const url = `${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/api/v1/chat/stream`;
 
+      // Get auth token
+      const token = useAuthStore.getState().token;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(request),
         signal: this.abortController.signal,
       });
