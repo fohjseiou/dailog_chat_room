@@ -70,6 +70,7 @@ class ToolConfig(BaseModel):
     description: str = ""
     requires_api_key: bool = False
     api_key_env_var: Optional[str] = None
+    llm_bindable: bool = True  # LLM 是否可以直接调用此工具
 
 # 所有可用工具的配置
 AVAILABLE_TOOLS: Dict[str, ToolConfig] = {
@@ -77,12 +78,14 @@ AVAILABLE_TOOLS: Dict[str, ToolConfig] = {
         enabled=True,
         description="搜索相关法律案例和裁判文书",
         requires_api_key=True,
-        api_key_env_var="FIRECRAWL_API_KEY"
+        api_key_env_var="FIRECRAWL_API_KEY",
+        llm_bindable=True  # LLM 可以直接调用
     ),
     "memory_extraction": ToolConfig(
         enabled=True,
         description="提取和存储用户长期记忆和偏好",
-        requires_api_key=False
+        requires_api_key=False,
+        llm_bindable=False  # 仅内部使用，LLM 不直接调用
     ),
 }
 
@@ -93,8 +96,8 @@ def get_enabled_tools() -> List[str]:
 
 def get_llm_bound_tools() -> List[str]:
     """获取应该绑定到 LLM 的工具（用户可直接调用的）"""
-    return [name for name in get_enabled_tools()
-            if name in ["search_cases"]]
+    return [name for name, config in AVAILABLE_TOOLS.items()
+            if config.enabled and config.llm_bindable]
 
 def get_tools_description() -> str:
     """获取工具描述，用于系统提示词"""
@@ -167,8 +170,13 @@ async def response_generator_node(state: AgentState) -> Dict[str, Any]:
 
     # 绑定工具到 LLM（如果有工具）
     if tools:
-        llm_with_tools = llm_service.llm.bind_tools(tools)
-        chain = prompt_template | llm_with_tools | StrOutputParser()
+        try:
+            llm_with_tools = llm_service.llm.bind_tools(tools)
+            chain = prompt_template | llm_with_tools | StrOutputParser()
+        except AttributeError:
+            # LLM 不支持 bind_tools()，降级为普通对话
+            logger.warning("LLM does not support bind_tools(), falling back to plain LLM")
+            chain = prompt_template | llm_service.llm | StrOutputParser()
     else:
         chain = prompt_template | llm_service.llm | StrOutputParser()
 
@@ -208,7 +216,49 @@ def check_tool_availability(tool_name: str) -> tuple[bool, str]:
 
 **File:** `backend/app/agents/nodes.py` (modify existing)
 
-同样需要修改 `response_generator_node_stream` 函数以支持工具绑定。
+同样需要修改 `response_generator_node_stream` 函数以支持工具绑定：
+
+```python
+async def response_generator_node_stream(state: AgentState) -> AsyncIterator[Dict[str, Any]]:
+    """Generate streaming response using LangChain ChatTongyi with memory and tools."""
+    from app.agents.tools import get_tool_registry
+    from app.agents.tools.capabilities import get_llm_bound_tools
+
+    llm_service = get_llm_service()
+    tool_registry = get_tool_registry()
+
+    # 构建包含工具的系统提示词
+    system_prompt = build_system_prompt_with_tools()
+
+    # ... 现有的记忆增强逻辑保持不变 ...
+
+    # 获取启用的工具
+    tools = []
+    for tool_name in get_llm_bound_tools():
+        tool = tool_registry.get_tool(tool_name)
+        if tool:
+            tools.append(tool)
+
+    # 构建链
+    prompt_template = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{user_message}")
+    ])
+
+    # 绑定工具到 LLM（如果有工具）
+    if tools:
+        try:
+            llm_with_tools = llm_service.llm.bind_tools(tools)
+            chain = prompt_template | llm_with_tools | StrOutputParser()
+        except AttributeError:
+            logger.warning("LLM does not support bind_tools(), falling back to plain LLM")
+            chain = prompt_template | llm_service.llm | StrOutputParser()
+    else:
+        chain = prompt_template | llm_service.llm | StrOutputParser()
+
+    # ... 现有的流式输出逻辑保持不变 ...
+```
 
 ## Data Flow
 
@@ -291,15 +341,42 @@ async def test_response_generator_has_tools_bound():
 **File:** `tests/e2e/test_tool_conversation.py`
 
 ```python
-async def test_user_asks_about_capability():
-    """
-    完整对话流程：
-    1. 用户问"你能搜索案例吗？"
-    2. LLM 回答"可以"
-    3. 用户提供搜索关键词
-    4. LLM 自动调用工具
-    """
-    pass
+class TestToolConversation:
+    """端到端测试：用户直接与 LLM 对话使用工具"""
+
+    @pytest.mark.asyncio
+    async def test_user_asks_about_search_capability(self, test_client):
+        """
+        完整对话流程：
+        1. 用户问"你能搜索案例吗？"
+        2. LLM 回答"可以"并询问搜索类型
+        3. 用户提供搜索关键词"交通事故赔偿"
+        4. LLM 自动调用 search_cases 工具
+        5. 验证搜索结果正确返回
+        """
+        # 第一轮：用户询问能力
+        response1 = await send_message("你能搜索案例吗？")
+        assert "可以" in response1 or "搜索" in response1
+
+        # 第二轮：用户提供搜索关键词
+        response2 = await send_message("交通事故赔偿")
+        # 验证包含了案例相关信息
+        assert "案例" in response2 or "裁判" in response2 or "法院" in response2
+
+    @pytest.mark.asyncio
+    async def test_tool_fails_gracefully_when_api_key_missing(self):
+        """测试：API 密钥缺失时优雅降级"""
+        # 临时移除 API 密钥
+        original_key = os.environ.get("FIRECRAWL_API_KEY")
+        os.environ["FIRECRAWL_API_KEY"] = ""
+
+        try:
+            response = await send_message("帮我搜索劳动合同纠纷的案例")
+            # 应该返回友好的错误信息，而不是崩溃
+            assert "未配置" in response or "暂不可用" in response
+        finally:
+            if original_key:
+                os.environ["FIRECRAWL_API_KEY"] = original_key
 ```
 
 ## Backward Compatibility
