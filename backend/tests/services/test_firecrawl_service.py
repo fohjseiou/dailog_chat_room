@@ -55,3 +55,16 @@ class TestFirecrawlService:
         assert "results" in result
         assert result["results"] == []
         assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_search_handles_missing_results_key(self):
+        """Test that search handles response with missing results key"""
+        service = FirecrawlService()
+        service.api_key = "test_key"
+        with patch('app.services.firecrawl_service._FIRECRAWL_AVAILABLE', True):
+            with patch('app.services.firecrawl_service._FIRECRAWL_IMPORT', "mcp__firecrawl__firecrawl_search"):
+                with patch('app.services.firecrawl_service.firecrawl_search', new_callable=AsyncMock, create=True) as mock_search:
+                    mock_search.return_value = {"data": "no results key"}
+                    result = await service.search("test")
+                    # Should handle gracefully - either return results list or error
+                    assert "results" in result or "error" in result

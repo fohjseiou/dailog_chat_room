@@ -1,4 +1,7 @@
-"""Firecrawl service for web search and scraping."""
+"""Firecrawl service for web search and scraping.
+
+This service wraps Firecrawl MCP tools for searching legal cases and court decisions from the web.
+"""
 import logging
 from typing import Dict, Any, Optional, List
 from app.config import get_settings
@@ -23,21 +26,35 @@ except ImportError:
 
 
 class FirecrawlService:
-    """Service for Firecrawl API integration."""
+    """Service for Firecrawl API integration.
+
+    This service provides methods to search the web for legal cases using the Firecrawl MCP tool.
+    """
 
     def __init__(self):
         self.settings = get_settings()
         self.api_key = self.settings.firecrawl_api_key
 
     async def search(self, query: str, limit: int = 5, scrape_options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Perform web search using Firecrawl."""
+        """Perform web search using Firecrawl.
+
+        Args:
+            query: Search query string
+            limit: Maximum number of results to return (default 5)
+            scrape_options: Optional scraping configuration
+
+        Returns:
+            Dictionary containing:
+                - results: List of search results with title, url, and content
+                - error: Error message if search failed (optional)
+        """
         if not self.api_key:
             logger.warning("FIRECRAWL_API_KEY not configured")
-            return {"results": [], "error": "FIRECRAWL_API_KEY not configured"}
+            return {"results": [], "error": "FIRECRAWL_API_KEY not configured. Set FIRECRAWL_API_KEY environment variable."}
 
         if not _FIRECRAWL_AVAILABLE:
             logger.warning("Firecrawl MCP not available")
-            return {"results": [], "error": "Firecrawl MCP tool not available"}
+            return {"results": [], "error": "Firecrawl MCP tool not available. Install MCP Firecrawl server."}
 
         try:
             if _FIRECRAWL_IMPORT == "mcp__firecrawl__firecrawl_search":
