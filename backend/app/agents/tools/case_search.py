@@ -10,6 +10,20 @@ from app.services.firecrawl_service import get_firecrawl_service
 logger = logging.getLogger(__name__)
 
 
+def _extract_summary(result: dict) -> str:
+    """Extract summary from search result.
+
+    Args:
+        result: A single search result dictionary
+
+    Returns:
+        Summary string, up to 500 characters
+    """
+    if "markdown" in result:
+        return result["markdown"][:500]
+    return result.get("snippet", "")
+
+
 @tool
 async def search_cases(query: str, limit: Optional[int] = 5) -> dict:
     """Search for legal cases and court decisions.
@@ -23,18 +37,19 @@ async def search_cases(query: str, limit: Optional[int] = 5) -> dict:
 
     Returns:
         A dictionary containing:
-            - cases: List of case results with title, url, and summary
+            - cases: List of case results with title, url, summary, and relevance
+            - total_found: Total number of results found
             - error: Error message if search failed (optional)
     """
     # Input validation
     if not query or not isinstance(query, str):
         logger.warning(f"Invalid query provided: {query}")
-        return {"cases": [], "error": "Query must be a non-empty string"}
+        return {"cases": [], "total_found": 0, "error": "Query must be a non-empty string"}
 
     query = query.strip()
     if not query:
         logger.warning("Empty query after stripping whitespace")
-        return {"cases": [], "error": "Query cannot be empty or whitespace only"}
+        return {"cases": [], "total_found": 0, "error": "Query cannot be empty or whitespace only"}
 
     # Limit validation
     if limit is not None:
@@ -61,6 +76,7 @@ async def search_cases(query: str, limit: Optional[int] = 5) -> dict:
             logger.warning("Firecrawl service not available")
             return {
                 "cases": [],
+                "total_found": 0,
                 "error": "Case search service is not available. Please configure FIRECRAWL_API_KEY."
             }
 
@@ -79,13 +95,18 @@ async def search_cases(query: str, limit: Optional[int] = 5) -> dict:
             case = {
                 "title": result.get("title", "Untitled"),
                 "url": result.get("url", ""),
-                "summary": result.get("markdown", "")[:500] if "markdown" in result else result.get("snippet", "")
+                "summary": _extract_summary(result),
+                "relevance": result.get("score", 0)
             }
             cases.append(case)
 
-        logger.info(f"Found {len(cases)} cases for query: '{query}'")
+        total_found = len(results)
+        logger.info(f"Found {total_found} cases for query: '{query}', returning {len(cases)}")
 
-        response = {"cases": cases}
+        response = {
+            "cases": cases,
+            "total_found": total_found
+        }
 
         # Include error if present
         if "error" in search_result:
@@ -93,6 +114,10 @@ async def search_cases(query: str, limit: Optional[int] = 5) -> dict:
 
         return response
 
+    except ValueError as e:
+        logger.error(f"Value error in case search: {e}", exc_info=True)
+        return {"cases": [], "total_found": 0, "error": f"Invalid input: {str(e)}"}
+
     except Exception as e:
-        logger.error(f"Error searching cases: {e}", exc_info=True)
-        return {"cases": [], "error": f"Failed to search cases: {str(e)}"}
+        logger.error(f"Unexpected error searching cases: {e}", exc_info=True)
+        return {"cases": [], "total_found": 0, "error": f"Failed to search cases: {str(e)}"}
