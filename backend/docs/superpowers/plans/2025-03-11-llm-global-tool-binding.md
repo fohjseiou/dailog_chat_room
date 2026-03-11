@@ -611,7 +611,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 
 ---
 
-## Chunk 4: 补充测试和验证
+## Chunk 4: 补充测试和手动验证
 
 ### Task 7: 添加工具绑定降级测试
 
@@ -751,6 +751,6 @@ FIRECRAWL_API_KEY=fc-your_api_key_here
 
 ## 总计
 
-**Tasks:** 6 个任务
-**Estimated Steps:** ~30 步
-**Estimated Time:** 2-3 小时
+**Tasks:** 8 个任务
+**Estimated Steps:** ~40 步
+**Estimated Time:** 3-4 小时
