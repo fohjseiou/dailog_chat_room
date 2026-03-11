@@ -1,11 +1,15 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, Typography } from 'antd';
-import { MessageOutlined, BookOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, Typography, Button } from 'antd';
+import { MessageOutlined, BookOutlined, SafetyCertificateOutlined, LoginOutlined } from '@ant-design/icons';
+import { UserMenu } from '../auth/UserMenu';
+import { useAuthStore } from '../../stores/authStore';
 
 const { Title } = Typography;
 
 export function Navigation() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuthStore();
 
   const getCurrentKey = () => {
     if (location.pathname === '/' || location.pathname.startsWith('/chat')) {
@@ -51,6 +55,22 @@ export function Navigation() {
             items={menuItems}
             className="border-0 [&_.anticon]:mr-2"
           />
+
+          {/* Auth Section */}
+          <div className="flex items-center">
+            {isAuthenticated ? (
+              <UserMenu />
+            ) : (
+              <Button
+                type="primary"
+                icon={<LoginOutlined />}
+                onClick={() => navigate('/login')}
+                data-testid="login-button"
+              >
+                登录
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </nav>
