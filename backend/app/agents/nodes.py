@@ -40,20 +40,25 @@ def build_system_prompt(context_str: str = "") -> str:
 
 async def intent_router_node(state: AgentState) -> Dict[str, Any]:
     """Classify user intent"""
-    message = state["user_message"].lower()
+    message = state["user_message"]
+
+    # Check for case_search command first (before lowercasing)
+    if message.startswith("search_cases:"):
+        return {"user_intent": "case_search"}
 
     # Simple keyword-based intent classification
+    message_lower = message.lower()
     legal_keywords = ["法律", "法", "合同", "侵权", "赔偿", "责任", "起诉", "诉讼", "法院"]
     greeting_keywords = ["你好", "您好", "hi", "hello"]
     doc_keywords = ["文档", "文件", "分析", "pdf", "docx"]  # NEW
 
-    if any(kw in message for kw in greeting_keywords):
+    if any(kw in message_lower for kw in greeting_keywords):
         return {"user_intent": "greeting"}
 
-    if any(kw in message for kw in doc_keywords):  # NEW
+    if any(kw in message_lower for kw in doc_keywords):  # NEW
         return {"user_intent": "document_analysis"}
 
-    if any(kw in message for kw in legal_keywords):
+    if any(kw in message_lower for kw in legal_keywords):
         return {"user_intent": "legal_consultation"}
 
     return {"user_intent": "general_chat"}
@@ -324,7 +329,7 @@ async def response_generator_node_stream(state: AgentState) -> AsyncIterator[Dic
             "data": {"error": str(e)}
         }
 
-
+# 记忆节点
 async def memory_extraction_node(state: AgentState) -> Dict[str, Any]:
     """
     Extract and store long-term memories from conversation.
@@ -387,7 +392,7 @@ async def memory_extraction_node(state: AgentState) -> Dict[str, Any]:
             "summary_generated": None
         }
 
-
+# 文档node节点
 async def doc_analyzer_node(state: AgentState) -> Dict[str, Any]:
     """
     Document analysis node (placeholder for future implementation).
@@ -416,3 +421,70 @@ async def doc_analyzer_node(state: AgentState) -> Dict[str, Any]:
         "context_str": "文档分析功能即将推出。当前为演示模式。",
         "sources": [{"type": "document", "message": "示例文档源"}]
     }
+
+
+async def case_search_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Handle case search requests using LLM tool calling.
+
+    This node uses an LLM with tools to process case search requests.
+    The query is extracted from the "search_cases:" command prefix.
+
+    Args:
+        state: Current agent state containing user_message with search_cases: prefix
+
+    Returns:
+        Dict with response containing formatted case search results
+    """
+    from app.agents.tools import get_tool_registry
+    from langchain_core.tools import render_text_description
+
+    llm_service = get_llm_service()
+    tool_registry = get_tool_registry()
+
+    # Extract query from command
+    query = state["user_message"].replace("search_cases:", "").strip()
+
+    # Get the search_cases tool
+    search_cases_tool = tool_registry.get_tool("search_cases")
+
+    if not search_cases_tool:
+        logger.error("search_cases tool not found in registry")
+        return {
+            "response": "抱歉，案例搜索功能暂时不可用。",
+            "error": "search_cases tool not registered"
+        }
+
+    # Bind tools to LLM
+    llm_with_tools = llm_service.llm.bind_tools([search_cases_tool])
+
+    # Generate prompt with tool descriptions
+    tool_descriptions = render_text_description([search_cases_tool])
+    system_prompt = f"""你是一个法律案例搜索助手。用户想要搜索相关的法律案例。
+
+可用工具：
+{tool_descriptions}
+
+请使用 search_cases 工具为用户搜索相关案例，然后以清晰易读的格式展示结果。每个案例应包含：
+- 案例标题
+- 案例摘要
+- 来源链接
+- 相关性评分"""
+
+    prompt_template = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "{query}")
+    ])
+
+    # Build and invoke chain
+    chain = prompt_template | llm_with_tools | StrOutputParser()
+
+    try:
+        response = await chain.ainvoke({"query": query})
+        return {"response": response, "error": ""}
+    except Exception as e:
+        logger.error(f"Error in case_search_node: {e}")
+        return {
+            "response": "抱歉，案例搜索时出现错误。请稍后再试。",
+            "error": str(e)
+        }

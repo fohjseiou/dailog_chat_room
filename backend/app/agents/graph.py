@@ -10,7 +10,8 @@ from app.agents.nodes import (
     rag_retriever_node,
     response_generator_node,
     memory_extraction_node,
-    doc_analyzer_node  # NEW
+    doc_analyzer_node,  # NEW
+    case_search_node  # NEW
 )
 import logging
 
@@ -38,6 +39,7 @@ def create_unified_agent_graph() -> StateGraph:
     workflow.add_node("intent_router", intent_router_node)
     workflow.add_node("rag_retriever", rag_retriever_node)
     workflow.add_node("doc_analyzer", doc_analyzer_node)  # NEW
+    workflow.add_node("case_search", case_search_node)  # NEW
     workflow.add_node("response_generator", response_generator_node)
     workflow.add_node("memory_extraction", memory_extraction_node)
 
@@ -48,6 +50,8 @@ def create_unified_agent_graph() -> StateGraph:
 
         if intent == "legal_consultation":
             return "rag_retriever"
+        elif intent == "case_search":  # NEW
+            return "case_search"
         elif intent == "document_analysis":  # NEW
             return "doc_analyzer"
         else:
@@ -72,12 +76,14 @@ def create_unified_agent_graph() -> StateGraph:
         route_after_intent,
         {
             "rag_retriever": "rag_retriever",
+            "case_search": "case_search",  # NEW
             "doc_analyzer": "doc_analyzer",  # NEW
             "response_generator": "response_generator"
         }
     )
 
     workflow.add_edge("rag_retriever", "response_generator")
+    workflow.add_edge("case_search", "response_generator")  # NEW
     workflow.add_edge("doc_analyzer", "response_generator")  # NEW
 
     workflow.add_conditional_edges(
