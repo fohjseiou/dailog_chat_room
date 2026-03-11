@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Integer, DateTime, func, ForeignKey
+from sqlalchemy import Column, String, Text, Integer, DateTime, func
 from sqlalchemy.orm import relationship
 from app.database import Base
 import uuid
@@ -13,7 +13,19 @@ class Session(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
     summary = Column(Text, nullable=True)
     message_count = Column(Integer, default=0, nullable=False)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="set null"), nullable=True)
+    user_id = Column(String(36), nullable=True)
 
-    messages = relationship("Message", back_populates="session", cascade="all, delete-orphan")
-    user = relationship("User", back_populates="sessions")
+    # relationships - specify primaryjoin since no database FK
+    messages = relationship(
+        "Message",
+        back_populates="session",
+        primaryjoin="Session.id == Message.session_id",
+        foreign_keys="Message.session_id",
+        cascade="all, delete-orphan"
+    )
+    user = relationship(
+        "User",
+        back_populates="sessions",
+        primaryjoin="Session.user_id == User.id",
+        foreign_keys="Session.user_id"
+    )

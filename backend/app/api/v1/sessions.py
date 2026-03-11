@@ -39,14 +39,16 @@ async def list_sessions(
     # Anonymous users see only anonymous sessions (user_id IS NULL)
     if current_user:
         # Authenticated user - show only their sessions
-        return await service.list_sessions(user_id=str(current_user.id))
+        sessions = await service.list_sessions(user_id=str(current_user.id))
+        return sessions
     else:
         # Anonymous user - show only anonymous sessions
         # We need to filter for sessions where user_id IS NULL
         # The service layer returns all sessions when user_id is None,
         # so we filter in the API layer
         all_sessions = await service.list_sessions(user_id=None)
-        return [s for s in all_sessions if s.user_id is None]
+        filtered = [s for s in all_sessions if s.user_id is None]
+        return filtered
 
 
 @router.get("/{session_id}", response_model=SessionResponse)

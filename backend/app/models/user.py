@@ -13,4 +13,11 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     last_login = Column(DateTime, nullable=True)
 
-    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
+    # relationships - specify primaryjoin since no database FK
+    sessions = relationship(
+        "Session",
+        back_populates="user",
+        primaryjoin="User.id == Session.user_id",
+        foreign_keys="Session.user_id",
+        cascade="all, delete-orphan"
+    )

@@ -2,9 +2,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Union, Dict, Any
+import logging
 
 from app.models.session import Session
 from app.schemas.session import SessionCreate, SessionUpdate, SessionResponse
+
+logger = logging.getLogger(__name__)
 
 
 class SessionService:

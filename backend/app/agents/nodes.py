@@ -224,7 +224,7 @@ async def response_generator_node(state: AgentState) -> Dict[str, Any]:
         # Convert conversation history
         history_messages = convert_to_langchain_messages(state["conversation_history"])
 
-        # Invoke chain
+        # Invoke chain (non-streaming for graph execution)
         response = await chain.ainvoke({
             "history": history_messages,
             "user_message": state["user_message"]

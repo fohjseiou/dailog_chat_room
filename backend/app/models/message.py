@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, func, Index, Text as JSONColumn
+from sqlalchemy import Column, String, Text, DateTime, func, Text as JSONColumn
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 from app.database import Base
@@ -11,17 +11,19 @@ class Message(Base):
     __tablename__ = "messages"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    session_id = Column(String(36), ForeignKey("sessions.id", ondelete="cascade"), nullable=False)
+    session_id = Column(String(36), nullable=False)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     _msg_metadata = Column("metadata", Text, nullable=True)
-    user_id = Column(String(36), ForeignKey("users.id", ondelete="set null"), nullable=True)
+    user_id = Column(String(36), nullable=True)
 
-    session = relationship("Session", back_populates="messages")
-
-    __table_args__ = (
-        Index("ix_messages_session_id", "session_id"),
+    # relationships - specify primaryjoin since no database FK
+    session = relationship(
+        "Session",
+        back_populates="messages",
+        primaryjoin="Message.session_id == Session.id",
+        foreign_keys="[Message.session_id]"
     )
 
     @hybrid_property
