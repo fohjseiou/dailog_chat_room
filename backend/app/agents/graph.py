@@ -1,117 +1,121 @@
+"""LangGraph agent workflow for legal consultation system.
+
+This module defines a unified agent graph that handles both streaming
+and non-streaming responses through a single workflow definition.
+"""
 from langgraph.graph import StateGraph, START, END
-from typing import AsyncIterator
 from app.agents.state import AgentState
-from app.agents.nodes import intent_router_node, rag_retriever_node, response_generator_node, response_generator_node_stream
+from app.agents.nodes import (
+    intent_router_node,
+    rag_retriever_node,
+    response_generator_node,
+    memory_extraction_node
+)
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def create_agent_graph() -> StateGraph:
-    """Create the LangGraph agent workflow"""
+def create_unified_agent_graph() -> StateGraph:
+    """
+    Create the unified LangGraph agent workflow.
 
-    # Create the graph with our state
+    This graph supports both streaming and non-streaming modes through
+    the state['streaming'] configuration. The routing is determined by
+    the user_intent field set by the intent_router node.
+
+    Flow:
+        START -> intent_router -> [rag_retriever?] -> response_generator
+                                                         |
+                                            [authenticated?] -> memory_extraction
+                                                         |
+                                                        END
+    """
     workflow = StateGraph(AgentState)
 
     # Add nodes
     workflow.add_node("intent_router", intent_router_node)
     workflow.add_node("rag_retriever", rag_retriever_node)
     workflow.add_node("response_generator", response_generator_node)
+    workflow.add_node("memory_extraction", memory_extraction_node)
 
-    # Define conditional edges from intent router
+    # Route after intent: decide whether to go through RAG
     def route_after_intent(state: AgentState) -> str:
+        """Route to RAG or directly to response based on intent"""
         intent = state.get("user_intent")
 
-        if intent == "greeting":
-            # Skip RAG, go directly to response
-            return "response_generator"
-        elif intent == "legal_consultation":
-            # Go through RAG
+        if intent == "legal_consultation":
             return "rag_retriever"
         else:
-            # General chat, skip RAG
+            # greeting, general_chat, etc. go directly to response
             return "response_generator"
+
+    # Route after response: decide whether to extract memory
+    def route_after_response(state: AgentState) -> str:
+        """Route to memory extraction or END based on authentication"""
+        user_id = state.get("user_id")
+
+        if user_id:
+            return "memory_extraction"
+        else:
+            return END
 
     # Define edges
     workflow.add_edge(START, "intent_router")
+
     workflow.add_conditional_edges(
         "intent_router",
         route_after_intent,
         {
-            "response_generator": "response_generator",
-            "rag_retriever": "rag_retriever"
+            "rag_retriever": "rag_retriever",
+            "response_generator": "response_generator"
         }
     )
 
-    # RAG always goes to response
     workflow.add_edge("rag_retriever", "response_generator")
-    workflow.add_edge("response_generator", END)
 
-    return workflow
-
-
-# Singleton
-_agent_graph = None
-_compiled_agent_graph = None
-
-
-def get_agent_graph():
-    """Get or create the compiled agent graph"""
-    global _agent_graph, _compiled_agent_graph
-    if _agent_graph is None:
-        _agent_graph = create_agent_graph()
-        _compiled_agent_graph = _agent_graph.compile()
-    return _compiled_agent_graph
-
-
-def create_streaming_agent_graph() -> StateGraph:
-    """Create a LangGraph agent workflow for streaming responses"""
-
-    workflow = StateGraph(AgentState)
-
-    # Add nodes
-    workflow.add_node("intent_router", intent_router_node)
-    workflow.add_node("rag_retriever", rag_retriever_node)
-    workflow.add_node("response_generator_stream", response_generator_node_stream)
-
-    # Define conditional edges from intent router
-    def route_after_intent(state: AgentState) -> str:
-        intent = state.get("user_intent")
-
-        if intent == "greeting":
-            return "response_generator_stream"
-        elif intent == "legal_consultation":
-            return "rag_retriever"
-        else:
-            return "response_generator_stream"
-
-    # Define edges
-    workflow.add_edge(START, "intent_router")
     workflow.add_conditional_edges(
-        "intent_router",
-        route_after_intent,
+        "response_generator",
+        route_after_response,
         {
-            "response_generator_stream": "response_generator_stream",
-            "rag_retriever": "rag_retriever"
+            "memory_extraction": "memory_extraction",
+            END: END
         }
     )
 
-    # RAG always goes to response
-    workflow.add_edge("rag_retriever", "response_generator_stream")
-    workflow.add_edge("response_generator_stream", END)
+    workflow.add_edge("memory_extraction", END)
 
     return workflow
 
 
-# Singleton for streaming graph
-_streaming_agent_graph = None
-_compiled_streaming_agent_graph = None
+# Singleton pattern for graph instance
+_unified_graph = None
+_compiled_unified_graph = None
+
+
+def get_unified_agent_graph():
+    """
+    Get or create the compiled unified agent graph.
+
+    Returns:
+        Compiled StateGraph ready for ainvoke() or astream() calls
+    """
+    global _unified_graph, _compiled_unified_graph
+
+    if _unified_graph is None:
+        _unified_graph = create_unified_agent_graph()
+        _compiled_unified_graph = _unified_graph.compile()
+        logger.info("Unified agent graph compiled successfully")
+
+    return _compiled_unified_graph
+
+
+# Legacy: Keep old function names for backward compatibility
+def get_agent_graph():
+    """Legacy alias for get_unified_agent_graph"""
+    return get_unified_agent_graph()
 
 
 def get_streaming_agent_graph():
-    """Get or create the compiled streaming agent graph"""
-    global _streaming_agent_graph, _compiled_streaming_agent_graph
-    if _streaming_agent_graph is None:
-        _streaming_agent_graph = create_streaming_agent_graph()
-        _compiled_streaming_agent_graph = _streaming_agent_graph.compile()
-    return _compiled_streaming_agent_graph
+    """Legacy alias for get_unified_agent_graph (streaming controlled by state)"""
+    return get_unified_agent_graph()
