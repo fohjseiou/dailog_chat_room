@@ -1,12 +1,12 @@
+"""Tests for streaming chat using LangGraph astream"""
 import pytest
 import json
-from fastapi.testclient import TestClient
 
 
 class TestStreamingChatAPI:
     """Test streaming chat API endpoints"""
 
-    def test_stream_chat_creates_session(self, test_client: TestClient):
+    def test_stream_chat_creates_session(self, test_client):
         """Test that streaming chat creates a new session"""
         response = test_client.post("/api/v1/chat/stream", json={"message": "你好"})
 
@@ -21,7 +21,7 @@ class TestStreamingChatAPI:
         assert len(session_events) > 0
         assert "session_id" in session_events[0]["data"]
 
-    def test_stream_chat_intent_classification(self, test_client: TestClient):
+    def test_stream_chat_intent_classification(self, test_client):
         """Test intent classification in streaming chat"""
         response = test_client.post("/api/v1/chat/stream", json={"message": "我想了解合同法相关内容"})
 
@@ -34,7 +34,7 @@ class TestStreamingChatAPI:
         assert len(intent_events) > 0
         assert intent_events[0]["data"]["intent"] in ["greeting", "legal_consultation", "general_chat"]
 
-    def test_stream_chat_legal_query_retrieves_context(self, test_client: TestClient):
+    def test_stream_chat_legal_query_retrieves_context(self, test_client):
         """Test that legal queries trigger context retrieval"""
         response = test_client.post(
             "/api/v1/chat/stream",
@@ -50,7 +50,7 @@ class TestStreamingChatAPI:
         assert len(context_events) > 0
         assert "sources" in context_events[0]["data"]
 
-    def test_stream_chat_sends_tokens(self, test_client: TestClient):
+    def test_stream_chat_sends_tokens(self, test_client):
         """Test that response is streamed in tokens"""
         response = test_client.post("/api/v1/chat/stream", json={"message": "你好"})
 
@@ -66,7 +66,7 @@ class TestStreamingChatAPI:
         assert "chunk" in token_events[0]["data"]
         assert "full_response" in token_events[0]["data"]
 
-    def test_stream_chat_sends_end_event(self, test_client: TestClient):
+    def test_stream_chat_sends_end_event(self, test_client):
         """Test that streaming ends properly"""
         response = test_client.post("/api/v1/chat/stream", json={"message": "你好"})
 
@@ -79,7 +79,7 @@ class TestStreamingChatAPI:
         assert len(end_events) > 0
         assert "response" in end_events[0]["data"]
 
-    def test_stream_chat_with_existing_session(self, test_client: TestClient):
+    def test_stream_chat_with_existing_session(self, test_client):
         """Test streaming chat with existing session"""
         # Create a session first using streaming endpoint
         create_response = test_client.post(
@@ -110,7 +110,7 @@ class TestStreamingChatAPI:
         assert len(session_events) > 0
         assert session_events[0]["data"]["session_id"] == session_id
 
-    def test_stream_chat_greeting_intent(self, test_client: TestClient):
+    def test_stream_chat_greeting_intent(self, test_client):
         """Test greeting classification"""
         response = test_client.post("/api/v1/chat/stream", json={"message": "你好"})
 
@@ -122,7 +122,7 @@ class TestStreamingChatAPI:
         assert len(intent_events) > 0
         assert intent_events[0]["data"]["intent"] == "greeting"
 
-    def test_stream_chat_legal_intent(self, test_client: TestClient):
+    def test_stream_chat_legal_intent(self, test_client):
         """Test legal consultation intent classification"""
         response = test_client.post(
             "/api/v1/chat/stream",
@@ -137,7 +137,7 @@ class TestStreamingChatAPI:
         assert len(intent_events) > 0
         assert intent_events[0]["data"]["intent"] == "legal_consultation"
 
-    def test_stream_chat_general_intent(self, test_client: TestClient):
+    def test_stream_chat_general_intent(self, test_client):
         """Test general chat intent classification"""
         response = test_client.post(
             "/api/v1/chat/stream",
@@ -153,7 +153,7 @@ class TestStreamingChatAPI:
         # Should be either general_chat or legal depending on content
         assert intent_events[0]["data"]["intent"] in ["general_chat", "legal_consultation", "greeting"]
 
-    def test_stream_chat_invalid_session(self, test_client: TestClient):
+    def test_stream_chat_invalid_session(self, test_client):
         """Test streaming chat with invalid session ID"""
         response = test_client.post(
             "/api/v1/chat/stream",

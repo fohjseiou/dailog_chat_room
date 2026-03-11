@@ -98,72 +98,79 @@ async def _stream_chat_events(
     current_user: Optional[User] = None
 ) -> AsyncIterator[str]:
     """
-    Generate SSE events for streaming chat
+    Generate SSE events for streaming chat using graph.astream().
 
-    Yields SSE-formatted events
+    Yields SSE-formatted events for each node execution.
     """
     session_service = SessionService(db)
     message_service = MessageService(db)
 
-    # Import nodes for direct use
-    from app.agents.nodes import intent_router_node, rag_retriever_node, response_generator_node_stream
-
-    # Get user_id from authenticated user, or None for anonymous
     user_id = current_user.id if current_user else None
 
-    # Get or create session
-    if request.session_id:
-        session = await session_service.get_session(request.session_id)
-        if not session:
-            yield _format_sse("error", {"error": "Session not found"})
-            return
-        session_id = request.session_id
-
-        # Get conversation history
-        messages = await message_service.get_messages_by_session(session_id)
-        conversation_history = [
-            {"role": msg.role, "content": msg.content}
-            for msg in messages[-10:]
-        ]
-    else:
-        new_session = await session_service.create_session({"title": None}, user_id=user_id)
-        session_id = new_session.id
-        conversation_history = []
-
     try:
+        # Prepare session and history
+        session_id, conversation_history = await _prepare_session(
+            session_service, message_service, request, user_id
+        )
+
         # Send session_id first
         yield _format_sse("session_id", {"session_id": session_id})
 
-        # Prepare state with user_id
-        state = create_initial_state(request.message, conversation_history, user_id=user_id)
+        # Create initial state with streaming=True
+        state = create_initial_state(
+            user_message=request.message,
+            conversation_history=conversation_history,
+            user_id=user_id,
+            session_id=session_id,
+            streaming=True
+        )
 
-        # Run the streaming workflow manually
+        # Execute graph using astream for orchestration
+        agent_graph = get_unified_agent_graph()
+
         full_response = ""
         sources = []
+        intent = "unknown"
 
-        # Step 1: Intent routing
-        intent_result = await intent_router_node(state)
-        intent = intent_result.get("user_intent", "unknown")
-        state.update(intent_result)
-        yield _format_sse("intent", {"intent": intent})
+        # Process streaming events from graph
+        async for event in agent_graph.astream(state):
+            # event format: {"node_name": {output_dict}}
+            for node_name, node_output in event.items():
 
-        # Step 2: RAG retrieval if needed
-        if intent == "legal_consultation":
-            rag_result = await rag_retriever_node(state)
-            state.update(rag_result)
-            sources = rag_result.get("sources", [])
-            yield _format_sse("context", {"sources": sources})
+                # Intent routing completed
+                if node_name == "intent_router":
+                    intent = node_output.get("user_intent", "unknown")
+                    yield _format_sse("intent", {"intent": intent})
 
-        # Step 3: Stream response
-        async for chunk_event in response_generator_node_stream(state):
-            yield _format_sse(chunk_event["event"], chunk_event["data"])
+                # RAG retrieval completed
+                elif node_name == "rag_retriever":
+                    sources = node_output.get("sources", [])
+                    if sources:
+                        yield _format_sse("context", {"sources": sources})
 
-            if chunk_event["event"] == "end":
-                full_response = chunk_event["data"].get("response", "")
-            elif chunk_event["event"] == "error":
-                full_response = "抱歉，处理您的请求时出现错误。"
+                # Response generation completed
+                elif node_name == "response_generator":
+                    # Get the full response from the node output
+                    if "response" in node_output:
+                        full_response = node_output["response"]
+                        # For now, send as a single token event (can be improved later)
+                        yield _format_sse("token", {
+                            "chunk": full_response,
+                            "full_response": full_response
+                        })
+                    # Handle error case
+                    if node_output.get("error"):
+                        yield _format_sse("error", {"error": node_output["error"]})
 
-        # Save the exchange
+                # Memory extraction completed (silent)
+                elif node_name == "memory_extraction":
+                    if node_output.get("memory_extracted"):
+                        logger.info(f"Memory extraction completed for session {session_id}")
+
+        # Send end event
+        yield _format_sse("end", {"response": full_response})
+
+        # Save conversation after streaming completes
         if full_response:
             await message_service.save_exchange(
                 session_id,
@@ -171,15 +178,19 @@ async def _stream_chat_events(
                 full_response,
                 {
                     "type": "agent_response_stream",
-                    "model": "qwen-via-langgraph-stream",
+                    "model": "qwen-langgraph-stream",
                     "sources": sources,
                     "intent": intent
                 }
             )
 
-            # Update session
+            # Update session message count
             await session_service.increment_message_count(session_id)
 
+    except HTTPException as e:
+        # Handle HTTP exceptions as SSE events
+        logger.error(f"HTTP error in stream chat endpoint: {e.detail}")
+        yield _format_sse("error", {"error": e.detail})
     except Exception as e:
         logger.error(f"Error in stream chat endpoint: {e}", exc_info=True)
         yield _format_sse("error", {"error": str(e)})
@@ -226,7 +237,9 @@ async def chat_stream(
     current_user: Optional[User] = Depends(get_current_user)
 ) -> StreamingResponse:
     """
-    Send a message and get a streaming response via Server-Sent Events
+    Send a message and get a streaming response via Server-Sent Events.
+
+    Uses LangGraph astream for execution.
 
     SSE Events:
     - session_id: Initial session ID

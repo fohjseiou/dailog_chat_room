@@ -72,14 +72,16 @@ async def test_stream_chat_passes_user_id_authenticated(chat_test_client, chat_t
 
     call_captures = []
 
-    def spy_create_initial_state(user_message, conversation_history, user_id=None):
+    def spy_create_initial_state(user_message, conversation_history, user_id=None, session_id=None, streaming=False):
         call_captures.append({
             'user_message': user_message,
             'conversation_history': conversation_history,
-            'user_id': user_id
+            'user_id': user_id,
+            'session_id': session_id,
+            'streaming': streaming
         })
         from app.agents.state import create_initial_state as orig
-        return orig(user_message, conversation_history, user_id)
+        return orig(user_message, conversation_history, user_id, session_id, streaming)
 
     with patch('app.api.v1.chat.create_initial_state', side_effect=spy_create_initial_state):
         with patch('app.agents.nodes.intent_router_node', new_callable=AsyncMock) as mock_intent:
@@ -111,14 +113,16 @@ async def test_stream_chat_passes_none_user_id_anonymous(chat_test_client):
 
     call_captures = []
 
-    def spy_create_initial_state(user_message, conversation_history, user_id=None):
+    def spy_create_initial_state(user_message, conversation_history, user_id=None, session_id=None, streaming=False):
         call_captures.append({
             'user_message': user_message,
             'conversation_history': conversation_history,
-            'user_id': user_id
+            'user_id': user_id,
+            'session_id': session_id,
+            'streaming': streaming
         })
         from app.agents.state import create_initial_state as orig
-        return orig(user_message, conversation_history, user_id)
+        return orig(user_message, conversation_history, user_id, session_id, streaming)
 
     with patch('app.api.v1.chat.create_initial_state', side_effect=spy_create_initial_state):
         with patch('app.agents.nodes.intent_router_node', new_callable=AsyncMock) as mock_intent:
