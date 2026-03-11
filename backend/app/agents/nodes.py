@@ -45,9 +45,13 @@ async def intent_router_node(state: AgentState) -> Dict[str, Any]:
     # Simple keyword-based intent classification
     legal_keywords = ["法律", "法", "合同", "侵权", "赔偿", "责任", "起诉", "诉讼", "法院"]
     greeting_keywords = ["你好", "您好", "hi", "hello"]
+    doc_keywords = ["文档", "文件", "分析", "pdf", "docx"]  # NEW
 
     if any(kw in message for kw in greeting_keywords):
         return {"user_intent": "greeting"}
+
+    if any(kw in message for kw in doc_keywords):  # NEW
+        return {"user_intent": "document_analysis"}
 
     if any(kw in message for kw in legal_keywords):
         return {"user_intent": "legal_consultation"}
@@ -382,3 +386,33 @@ async def memory_extraction_node(state: AgentState) -> Dict[str, Any]:
             "facts_extracted": [],
             "summary_generated": None
         }
+
+
+async def doc_analyzer_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Document analysis node (placeholder for future implementation).
+
+    This is a demonstration of how easy it is to add new agents to the system.
+    In a real implementation, this would:
+    - Extract document content from the user message
+    - Analyze the document using appropriate tools
+    - Return structured analysis results
+
+    Args:
+        state: Current agent state
+
+    Returns:
+        Dict with document analysis results
+    """
+    user_message = state.get("user_message", "")
+
+    # Placeholder: In real implementation, this would:
+    # 1. Parse document from message or attachment
+    # 2. Use document analysis tools
+    # 3. Return structured analysis
+
+    return {
+        "doc_analysis": f"文档分析请求: {user_message}",
+        "context_str": "文档分析功能即将推出。当前为演示模式。",
+        "sources": [{"type": "document", "message": "示例文档源"}]
+    }
