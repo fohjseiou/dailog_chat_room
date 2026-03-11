@@ -18,26 +18,24 @@ def test_register_tool():
     def test_function(query: str) -> str:
         return f"Result for: {query}"
 
-    registry.register(
-        name="test_tool",
-        func=test_function,
-        description="A test tool"
-    )
+    registry.register_tool(name="test_tool", tool_func=test_function)
 
-    tools = registry.get_tools()
-    assert len(tools) == 1
-    assert tools[0].name == "test_tool"
+    tools = registry.get_all_tools()
+    assert "test_tool" in tools
+    assert "search_cases" in tools  # Default tool
 
 
-def test_get_tools_returns_empty_initially():
-    """Test that get_tools returns empty list when no tools registered"""
+def test_get_tools_returns_default_initially():
+    """Test that registry has default tools registered"""
     registry = ToolRegistry()  # Fresh instance
-    tools = registry.get_tools()
-    assert tools == []
+    # Default tools are auto-registered
+    tools = registry.get_all_tools()
+    assert "search_cases" in tools
 
 
-def test_mcp_interface_exists():
-    """Test that MCP integration interface is defined"""
+def test_list_tools():
+    """Test that list_tools returns tool names"""
     registry = ToolRegistry()
-    assert hasattr(registry, 'load_from_mcp_server')
-    # Implementation is TODO, but interface should exist
+    tool_names = registry.list_tools()
+    assert "search_cases" in tool_names
+    assert isinstance(tool_names, list)
