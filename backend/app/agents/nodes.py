@@ -4,6 +4,8 @@ from app.agents.utils import convert_to_langchain_messages
 from app.services.document_service import get_document_service
 from app.services.llm_service import get_llm_service
 from app.services.memory_service import MemoryService
+from app.services.memory_extraction_service import MemoryExtractionService
+from app.services.session_service import SessionService
 from app.database import get_db
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
@@ -96,7 +98,7 @@ def _format_context_for_prompt(results: List[Dict[str, Any]]) -> str:
 
     return "\n\n".join(context_parts)
 
-
+# 短期记忆（Retrieve db） 长期记忆（Retrieve vector）用户爱好（Retrieve db）
 async def _enhance_prompt_with_memory(
     base_prompt: str,
     user_id: str,
@@ -316,4 +318,67 @@ async def response_generator_node_stream(state: AgentState) -> AsyncIterator[Dic
         yield {
             "event": "error",
             "data": {"error": str(e)}
+        }
+
+
+async def memory_extraction_node(state: AgentState) -> Dict[str, Any]:
+    """
+    Extract and store long-term memories from conversation.
+
+    This node is only executed for authenticated users (when user_id is present).
+    It extracts user facts and generates conversation summaries.
+
+    Args:
+        state: Current agent state containing user_id, session_id, and conversation history
+
+    Returns:
+        Dict with memory extraction results
+    """
+    user_id = state.get("user_id")
+    session_id = state.get("session_id")
+    conversation_history = state.get("conversation_history", [])
+    user_message = state.get("user_message", "")
+
+    # Skip if not authenticated
+    if not user_id:
+        return {
+            "memory_extracted": False,
+            "facts_extracted": [],
+            "summary_generated": None
+        }
+
+    try:
+        # Get database session
+        async for db in get_db():
+            extraction_service = MemoryExtractionService(db)
+            session_service = SessionService(db)
+
+            # Get message count
+            session = await session_service.get_session(session_id)
+            message_count = session.message_count if session else 0
+
+            # Build last N messages for context
+            last_n_messages = (conversation_history[-5:] if conversation_history else []) + [{"role": "user", "content": user_message}]
+
+            # Extract memories
+            results = await extraction_service.process_conversation_memory(
+                user_id=user_id,
+                session_id=session_id,
+                message_count=message_count,
+                last_user_message=user_message,
+                last_n_messages=last_n_messages
+            )
+
+            return {
+                "memory_extracted": True,
+                "facts_extracted": results.get("facts_extracted", []),
+                "summary_generated": results.get("summary_generated")
+            }
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in memory_extraction_node: {e}")
+        return {
+            "memory_extracted": False,
+            "facts_extracted": [],
+            "summary_generated": None
         }
