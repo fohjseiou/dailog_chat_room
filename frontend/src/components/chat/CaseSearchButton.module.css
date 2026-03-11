@@ -1,0 +1,25 @@
+.case-search-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  margin-top: 0.5rem;
+  background-color: #f0f9ff;
+  border: 1px solid #0ea5e9;
+  border-radius: 0.5rem;
+  color: #0369a1;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.case-search-button:hover:not(:disabled) {
+  background-color: #e0f2fe;
+  border-color: #0284c7;
+}
+
+.case-search-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
