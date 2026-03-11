@@ -15,6 +15,7 @@ export function ChatView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const [lastUserMessage, setLastUserMessage] = useState<string | undefined>(undefined);
 
   // Load messages if session exists and messages are empty
   useEffect(() => {
@@ -22,6 +23,16 @@ export function ChatView() {
       loadMessages(sessionId);
     }
   }, [sessionId, loadMessages, messages.length]);
+
+  // Track last user message for case search
+  useEffect(() => {
+    const userMessages = messages.filter(m => m.role === 'user');
+    if (userMessages.length > 0) {
+      setLastUserMessage(userMessages[userMessages.length - 1].content);
+    } else {
+      setLastUserMessage(undefined);
+    }
+  }, [messages]);
 
   // Check if user is near bottom (within 100px)
   const checkIfNearBottom = () => {
@@ -57,7 +68,7 @@ export function ChatView() {
 
   return (
     <ResponsiveLayout sidebarContent={<SessionList />}>
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col flex-1 h-full">
         <div className="flex-1 overflow-y-auto p-4" ref={messagesContainerRef}>
           {messages.length === 0 ? (
             <Empty
@@ -72,7 +83,11 @@ export function ChatView() {
             />
           ) : (
             messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble
+                key={message.id}
+                message={message}
+                lastUserMessage={message.role === 'assistant' ? lastUserMessage : undefined}
+              />
             ))
           )}
 

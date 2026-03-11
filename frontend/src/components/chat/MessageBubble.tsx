@@ -2,16 +2,25 @@ import { Message } from '../../stores/chatStore';
 import { useChatStore } from '../../stores/chatStore';
 import { Card, Typography, Tag, Dropdown, Button, Space } from 'antd';
 import { MoreOutlined, DeleteOutlined, BookOutlined } from '@ant-design/icons';
+import { CaseSearchButton } from './CaseSearchButton';
+import { extractKeyQuestion, isLegalConsultation } from '../../utils/queryExtractor';
 
 const { Paragraph } = Typography;
 
 interface MessageBubbleProps {
   message: Message;
+  lastUserMessage?: string;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, lastUserMessage }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const { deleteMessage } = useChatStore();
+
+  // Determine if we should show CaseSearchButton
+  const showCaseSearch = !isUser &&
+                        !message.streaming &&
+                        isLegalConsultation(message.content) &&
+                        !!lastUserMessage;
 
   const handleDelete = async () => {
     await deleteMessage(message.id);
@@ -66,6 +75,13 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               </Tag>
             ))}
           </Space>
+        )}
+
+        {/* Case Search Button */}
+        {showCaseSearch && lastUserMessage && (
+          <div className="mt-3">
+            <CaseSearchButton query={extractKeyQuestion(lastUserMessage)} />
+          </div>
         )}
 
         {/* Timestamp */}
