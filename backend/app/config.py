@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     long_term_memory_top_k: int = 5
     enable_memory_extraction: bool = True
 
+    # Firecrawl
+    firecrawl_api_key: str = ""
+
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",")]
