@@ -1,5 +1,5 @@
 import { Dropdown, Avatar, Space, Typography } from 'antd';
-import { UserOutlined, LogoutOutlined } from '@ant-design/icons';
+import { LogoutOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../../stores/authStore';
 import type { MenuProps } from 'antd';
 
