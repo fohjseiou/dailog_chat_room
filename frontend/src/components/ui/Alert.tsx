@@ -89,3 +89,4 @@ export function Alert({
 }
 
 export { AlertProvider, useAlert, type AlertItem, type AlertContextValue, type AlertPosition } from './Alert.context';
+export { ToastContainer } from './Alert.toast';

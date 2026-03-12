@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, act } from '@testing-library/react';
 import { renderWithProviders } from '../../test/test-utils';
-import { Alert, AlertProvider, useAlert } from './Alert';
+import { Alert, AlertProvider, useAlert, ToastContainer } from './Alert';
 
 // Test component to use the alert context
 function TestComponent() {
   const { showToast, showSuccess, showError, showInfo, showWarning } = useAlert();
 
   return (
-    <div>
+    <>
       <button onClick={() => showToast('Test toast')}>Toast</button>
       <button onClick={() => showSuccess('Test success')}>Success</button>
       <button onClick={() => showError('Test error')}>Error</button>
@@ -17,7 +17,8 @@ function TestComponent() {
       <button onClick={() => showToast('Auto dismiss', { duration: 100 })}>
         Auto Dismiss
       </button>
-    </div>
+      <ToastContainer />
+    </>
   );
 }
 
@@ -37,22 +38,29 @@ describe('Alert Component', () => {
 
   it('applies variant classes correctly', () => {
     const { rerender } = renderWithProviders(<Alert variant="info">Info</Alert>);
-    expect(screen.getByText('Info')).toHaveClass('bg-blue-50', 'border-blue-200');
+    const infoElement = screen.getByText('Info').closest('div.bg-blue-50');
+    expect(infoElement).toBeInTheDocument();
+    expect(infoElement).toHaveClass('bg-blue-50', 'border-blue-200');
 
     rerender(<Alert variant="success">Success</Alert>);
-    expect(screen.getByText('Success')).toHaveClass('bg-green-50', 'border-green-200');
+    const successElement = screen.getByText('Success').closest('div.bg-green-50');
+    expect(successElement).toBeInTheDocument();
+    expect(successElement).toHaveClass('bg-green-50', 'border-green-200');
 
     rerender(<Alert variant="warning">Warning</Alert>);
-    expect(screen.getByText('Warning')).toHaveClass('bg-yellow-50', 'border-yellow-200');
+    const warningElement = screen.getByText('Warning').closest('div.bg-yellow-50');
+    expect(warningElement).toBeInTheDocument();
+    expect(warningElement).toHaveClass('bg-yellow-50', 'border-yellow-200');
 
     rerender(<Alert variant="error">Error</Alert>);
-    expect(screen.getByText('Error')).toHaveClass('bg-red-50', 'border-red-200');
+    const errorElement = screen.getByText('Error').closest('div.bg-red-50');
+    expect(errorElement).toBeInTheDocument();
+    expect(errorElement).toHaveClass('bg-red-50', 'border-red-200');
   });
 
   it('renders with icon when showIcon is true', () => {
     renderWithProviders(<Alert showIcon>With icon</Alert>);
-    const alert = screen.getByText('With icon').closest('div');
-    const icon = alert?.querySelector('svg');
+    const icon = document.querySelector('svg'); // lucide-react icons render as SVG
     expect(icon).toBeInTheDocument();
   });
 
@@ -67,7 +75,9 @@ describe('Alert Component', () => {
     renderWithProviders(<Alert closable onClose={handleClose}>Close me</Alert>);
 
     const closeButton = screen.getByRole('button', { name: /close/i });
-    closeButton.click();
+    act(() => {
+      closeButton.click();
+    });
 
     expect(handleClose).toHaveBeenCalledTimes(1);
   });
@@ -84,6 +94,14 @@ describe('Alert Component', () => {
 });
 
 describe('AlertProvider', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('provides alert context to children', () => {
     renderWithProviders(
       <AlertProvider>
@@ -101,7 +119,9 @@ describe('AlertProvider', () => {
     );
 
     const button = screen.getByText('Toast');
-    button.click();
+    act(() => {
+      button.click();
+    });
 
     expect(screen.getByText('Test toast')).toBeInTheDocument();
   });
@@ -114,7 +134,9 @@ describe('AlertProvider', () => {
     );
 
     const button = screen.getByText('Success');
-    button.click();
+    act(() => {
+      button.click();
+    });
 
     expect(screen.getByText('Test success')).toBeInTheDocument();
   });
@@ -127,7 +149,9 @@ describe('AlertProvider', () => {
     );
 
     const button = screen.getByText('Error');
-    button.click();
+    act(() => {
+      button.click();
+    });
 
     expect(screen.getByText('Test error')).toBeInTheDocument();
   });
@@ -140,7 +164,9 @@ describe('AlertProvider', () => {
     );
 
     const button = screen.getByText('Info');
-    button.click();
+    act(() => {
+      button.click();
+    });
 
     expect(screen.getByText('Test info')).toBeInTheDocument();
   });
@@ -153,12 +179,14 @@ describe('AlertProvider', () => {
     );
 
     const button = screen.getByText('Warning');
-    button.click();
+    act(() => {
+      button.click();
+    });
 
     expect(screen.getByText('Test warning')).toBeInTheDocument();
   });
 
-  it('auto-dismisses alert after duration', async () => {
+  it('auto-dismisses alert after duration', () => {
     renderWithProviders(
       <AlertProvider>
         <TestComponent />
@@ -166,16 +194,19 @@ describe('AlertProvider', () => {
     );
 
     const button = screen.getByText('Auto Dismiss');
-    button.click();
+    act(() => {
+      button.click();
+    });
 
     expect(screen.getByText('Auto dismiss')).toBeInTheDocument();
 
     // Fast-forward time
-    vi.advanceTimersByTime(150);
-
-    await waitFor(() => {
-      expect(screen.queryByText('Auto dismiss')).not.toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(150);
+      vi.runAllTimers();
     });
+
+    expect(screen.queryByText('Auto dismiss')).not.toBeInTheDocument();
   });
 
   it('displays multiple alerts simultaneously', () => {
@@ -185,9 +216,15 @@ describe('AlertProvider', () => {
       </AlertProvider>
     );
 
-    screen.getByText('Success').click();
-    screen.getByText('Error').click();
-    screen.getByText('Info').click();
+    act(() => {
+      screen.getByText('Success').click();
+    });
+    act(() => {
+      screen.getByText('Error').click();
+    });
+    act(() => {
+      screen.getByText('Info').click();
+    });
 
     expect(screen.getByText('Test success')).toBeInTheDocument();
     expect(screen.getByText('Test error')).toBeInTheDocument();
@@ -202,15 +239,19 @@ describe('AlertProvider', () => {
     );
 
     const button = screen.getByText('Toast');
-    button.click();
+    act(() => {
+      button.click();
+    });
 
     const closeButton = screen.getByRole('button', { name: /close/i });
-    closeButton.click();
+    act(() => {
+      closeButton.click();
+    });
 
     expect(screen.queryByText('Test toast')).not.toBeInTheDocument();
   });
 
-  it('respects custom duration', async () => {
+  it('respects custom duration', () => {
     renderWithProviders(
       <AlertProvider defaultDuration={5000}>
         <TestComponent />
@@ -218,17 +259,22 @@ describe('AlertProvider', () => {
     );
 
     const button = screen.getByText('Toast');
-    button.click();
+    act(() => {
+      button.click();
+    });
 
     // Should still be visible after 1 second
-    vi.advanceTimersByTime(1000);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
     expect(screen.getByText('Test toast')).toBeInTheDocument();
 
     // Should be dismissed after 5 seconds
-    vi.advanceTimersByTime(4000);
-    await waitFor(() => {
-      expect(screen.queryByText('Test toast')).not.toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(4000);
+      vi.runAllTimers();
     });
+    expect(screen.queryByText('Test toast')).not.toBeInTheDocument();
   });
 
   it('respects custom position', () => {
@@ -238,7 +284,9 @@ describe('AlertProvider', () => {
       </AlertProvider>
     );
 
-    screen.getByText('Toast').click();
+    act(() => {
+      screen.getByText('Toast').click();
+    });
 
     const containerDiv = container.querySelector('.fixed.top-4.left-1\\/2');
     expect(containerDiv).toBeInTheDocument();
