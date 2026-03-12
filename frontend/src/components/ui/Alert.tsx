@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react';
-import { X, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
+import { ReactNode } from 'react';
+import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
+import type { AlertVariant } from './Alert.context';
 
-export type AlertType = 'success' | 'error' | 'warning' | 'info';
+export type { AlertVariant } from './Alert.context';
 
-interface AlertProps {
-  type: AlertType;
-  message: string;
+export interface AlertProps {
+  variant?: AlertVariant;
+  title?: string;
+  showIcon?: boolean;
+  closable?: boolean;
   onClose?: () => void;
-  duration?: number;
+  className?: string;
+  children: ReactNode;
 }
 
 const ALERT_CONFIG = {
@@ -39,41 +43,42 @@ const ALERT_CONFIG = {
     textColor: 'text-blue-800',
     iconColor: 'text-blue-500',
   },
+  default: {
+    icon: Info,
+    bgColor: 'bg-gray-50',
+    borderColor: 'border-gray-200',
+    textColor: 'text-gray-800',
+    iconColor: 'text-gray-500',
+  },
 };
 
-export function Alert({ type, message, onClose, duration }: AlertProps) {
-  const [visible, setVisible] = useState(true);
-
-  useEffect(() => {
-    if (duration && duration > 0) {
-      const timer = setTimeout(() => {
-        handleClose();
-      }, duration);
-      return () => clearTimeout(timer);
-    }
-  }, [duration]);
-
-  const handleClose = () => {
-    setVisible(false);
-    onClose?.();
-  };
-
-  const config = ALERT_CONFIG[type];
+export function Alert({
+  variant = 'default',
+  title,
+  showIcon = true,
+  closable = false,
+  onClose,
+  className = '',
+  children,
+}: AlertProps) {
+  const config = ALERT_CONFIG[variant];
   const Icon = config.icon;
 
-  if (!visible) return null;
-
   return (
-    <div className={`${config.bgColor} ${config.borderColor} border rounded-lg p-4 mb-4`}>
+    <div className={`${config.bgColor} ${config.borderColor} border rounded-lg p-4 ${className}`}>
       <div className="flex items-start">
-        <Icon className={`h-5 w-5 ${config.iconColor} mr-3 mt-0.5 flex-shrink-0`} />
+        {showIcon && (
+          <Icon className={`h-5 w-5 ${config.iconColor} mr-3 mt-0.5 flex-shrink-0`} />
+        )}
         <div className={`flex-1 ${config.textColor} text-sm`}>
-          {message}
+          {title && <div className="font-semibold mb-1">{title}</div>}
+          <div>{children}</div>
         </div>
-        {onClose && (
+        {closable && (
           <button
-            onClick={handleClose}
+            onClick={onClose}
             className={`ml-3 ${config.textColor} hover:opacity-75 transition-opacity`}
+            aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
@@ -83,77 +88,4 @@ export function Alert({ type, message, onClose, duration }: AlertProps) {
   );
 }
 
-// Toast Container for global alerts
-interface Toast {
-  id: string;
-  type: AlertType;
-  message: string;
-}
-
-let toastId = 0;
-let toastListeners: ((toasts: Toast[]) => void)[] = [];
-
-export const toast = {
-  show: (message: string, type: AlertType = 'info', duration = 5000) => {
-    const id = `toast-${toastId++}`;
-    const newToast: Toast = { id, type, message };
-
-    // Add toast to all listeners
-    toastListeners.forEach(listener => {
-      const listenerToasts = (listener as any)._toasts || [];
-      listener([...listenerToasts, newToast]);
-    });
-
-    // Auto remove after duration
-    if (duration > 0) {
-      setTimeout(() => {
-        toast.remove(id);
-      }, duration);
-    }
-
-    return id;
-  },
-
-  success: (message: string, duration?: number) => toast.show(message, 'success', duration),
-  error: (message: string, duration?: number) => toast.show(message, 'error', duration),
-  warning: (message: string, duration?: number) => toast.show(message, 'warning', duration),
-  info: (message: string, duration?: number) => toast.show(message, 'info', duration),
-
-  remove: (id: string) => {
-    toastListeners.forEach(listener => {
-      const listenerToasts = (listener as any)._toasts || [];
-      (listener as any)._toasts = listenerToasts.filter(t => t.id !== id);
-    });
-  },
-};
-
-export function ToastContainer() {
-  const [toasts, setToasts] = useState<Toast[]>([]);
-
-  useEffect(() => {
-    (setToasts as any)._toasts = toasts;
-    toastListeners.push(setToasts);
-
-    return () => {
-      toastListeners = toastListeners.filter(l => l !== setToasts);
-    };
-  }, [toasts]);
-
-  const removeToast = (id: string) => {
-    setToasts(toasts.filter(t => t.id !== id));
-  };
-
-  return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full">
-      {toasts.map((toast) => (
-        <Alert
-          key={toast.id}
-          type={toast.type}
-          message={toast.message}
-          onClose={() => removeToast(toast.id)}
-          duration={0}
-        />
-      ))}
-    </div>
-  );
-}
+export { AlertProvider, useAlert, type AlertItem, type AlertContextValue, type AlertPosition } from './Alert.context';
