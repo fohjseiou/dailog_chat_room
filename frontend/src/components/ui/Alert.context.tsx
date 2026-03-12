@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, ReactNode, useState, useCallback } from 'react';
 
 export type AlertVariant = 'success' | 'error' | 'warning' | 'info' | 'default';
 
@@ -19,6 +19,7 @@ export interface AlertOptions {
 
 export interface AlertContextValue {
   alerts: AlertItem[];
+  position: AlertPosition;
   showToast: (message: string, options?: AlertOptions) => string;
   showSuccess: (message: string, options?: AlertOptions) => string;
   showError: (message: string, options?: AlertOptions) => string;
@@ -29,6 +30,8 @@ export interface AlertContextValue {
 }
 
 export const AlertContext = createContext<AlertContextValue | undefined>(undefined);
+
+let alertId = 0;
 
 export interface AlertProviderProps {
   defaultDuration?: number;
@@ -43,8 +46,88 @@ export function AlertProvider({
   maxAlerts = 5,
   children
 }: AlertProviderProps) {
-  // Implementation will be completed in the next step
-  throw new Error('Not implemented yet');
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+
+  const removeAlert = useCallback((id: string) => {
+    setAlerts((prev) => prev.filter((alert) => alert.id !== id));
+  }, []);
+
+  const addAlert = useCallback((
+    message: string,
+    variant: AlertVariant,
+    options?: AlertOptions
+  ): string => {
+    const id = `alert-${alertId++}`;
+    const alert: AlertItem = {
+      id,
+      variant,
+      message,
+      duration: options?.duration ?? defaultDuration,
+    };
+
+    setAlerts((prev) => {
+      const newAlerts = [...prev, alert];
+      // Enforce maxAlerts limit by removing oldest if exceeded
+      if (newAlerts.length > maxAlerts!) {
+        return newAlerts.slice(-maxAlerts!);
+      }
+      return newAlerts;
+    });
+
+    if (alert.duration && alert.duration > 0) {
+      setTimeout(() => {
+        removeAlert(id);
+      }, alert.duration);
+    }
+
+    return id;
+  }, [defaultDuration, maxAlerts, removeAlert]);
+
+  const showToast = useCallback((message: string, options?: AlertOptions) => {
+    return addAlert(message, 'default', options);
+  }, [addAlert]);
+
+  const showSuccess = useCallback((message: string, options?: AlertOptions) => {
+    return addAlert(message, 'success', options);
+  }, [addAlert]);
+
+  const showError = useCallback((message: string, options?: AlertOptions) => {
+    return addAlert(message, 'error', options);
+  }, [addAlert]);
+
+  const showWarning = useCallback((message: string, options?: AlertOptions) => {
+    return addAlert(message, 'warning', options);
+  }, [addAlert]);
+
+  const showInfo = useCallback((message: string, options?: AlertOptions) => {
+    return addAlert(message, 'info', options);
+  }, [addAlert]);
+
+  const close = useCallback((id: string) => {
+    removeAlert(id);
+  }, [removeAlert]);
+
+  const closeAll = useCallback(() => {
+    setAlerts([]);
+  }, []);
+
+  const value: AlertContextValue = {
+    alerts,
+    position,
+    showToast,
+    showSuccess,
+    showError,
+    showWarning,
+    showInfo,
+    close,
+    closeAll,
+  };
+
+  return (
+    <AlertContext.Provider value={value}>
+      {children}
+    </AlertContext.Provider>
+  );
 }
 
 export function useAlert(): AlertContextValue {
