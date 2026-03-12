@@ -119,7 +119,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         role: 'assistant',
         content: response.response,
         timestamp: new Date(),
-        sources: response.sources.map(s => ({ title: s.title, score: s.score })),
+        sources: response.sources?.map(s => ({ title: s.title, score: s.score })) || [],
       };
       set((state) => ({
         messages: [...state.messages, assistantMessage],
@@ -178,7 +178,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             break;
 
           case 'context':
-            sources = chunk.data.sources.map((s: any) => ({
+            sources = (chunk.data.sources || []).map((s: any) => ({
               title: s.title,
               score: s.score
             }));
