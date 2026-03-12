@@ -5,7 +5,8 @@ import { MessageInput } from './MessageInput';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { ResponsiveLayout } from '../layout/ResponsiveLayout';
 import { SessionList } from '../common/SessionList';
-import { Empty, Alert, Space, Typography } from 'antd';
+import { Empty, Space, Typography } from 'antd';
+import { Alert } from '../../components/ui';
 import { SafetyCertificateOutlined } from '@ant-design/icons';
 
 const { Title, Paragraph } = Typography;
@@ -110,13 +111,15 @@ export function ChatView() {
           {/* Error Display */}
           {error && (
             <Alert
-              message={error}
-              type="error"
+              variant="error"
+              title="错误"
+              showIcon
               closable
               onClose={clearError}
-              showIcon
               className="mb-4"
-            />
+            >
+              {error}
+            </Alert>
           )}
 
           <div ref={messagesEndRef} />
