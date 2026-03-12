@@ -60,3 +60,4 @@ backend/.env
 # Documentation
 docs/
 backend/docs/
+backend/backend/
