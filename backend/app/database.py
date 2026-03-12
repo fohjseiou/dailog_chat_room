@@ -17,4 +17,10 @@ async def get_db() -> AsyncSession:
         try:
             yield session
         finally:
+            # Rollback any pending transaction before closing
+            # This prevents PendingRollbackError when reusing connections
+            try:
+                await session.rollback()
+            except Exception:
+                pass  # Ignore errors during rollback
             await session.close()
